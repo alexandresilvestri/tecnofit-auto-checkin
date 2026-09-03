@@ -1,0 +1,5 @@
+services:
+  moto:
+    image: motoserver/moto:5.2.4
+    ports:
+      - "5000:5000"

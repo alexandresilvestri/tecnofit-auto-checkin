@@ -1,0 +1,18 @@
+{
+  "events": [
+    {
+      "id": 587887,
+      "classId": 33548,
+      "name": "TREINO NO RANCHO",
+      "teacher": "Professor Teste",
+      "start": "2026-10-21 07:00",
+      "end": "2026-10-21 08:00",
+      "weekDay": 3,
+      "count": 5,
+      "capacity": 20,
+      "checkInDate": null,
+      "checkInId": null,
+      "waitingListDateLimit": "2026-10-21 06:30:00"
+    }
+  ]
+}
