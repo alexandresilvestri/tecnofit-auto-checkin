@@ -16,7 +16,7 @@ terraform {
 }
 
 provider "aws" {
-  region = "sa-east-1"
+  region = "us-east-1"
 
   default_tags {
     tags = {
@@ -31,7 +31,7 @@ data "aws_caller_identity" "current" {}
 module "backend" {
   source           = "../../modules/backend"
   env              = "dev"
-  artifacts_bucket = "checkin-artifacts-${data.aws_caller_identity.current.account_id}"
+  artifacts_bucket = "checkin-artifacts-${data.aws_caller_identity.current.account_id}-us-east-1"
   artifact_version = var.artifact_version
   main_table_name  = module.data.main_table_name
   main_table_arn   = module.data.main_table_arn

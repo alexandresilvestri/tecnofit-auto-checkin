@@ -5,7 +5,7 @@ import { GetCallerIdentityCommand, STSClient } from "@aws-sdk/client-sts";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { createEntities } from "@checkin/core/db/entities";
 
-const REGION = "sa-east-1";
+const REGION = "us-east-1";
 
 export async function loadEnv() {
   const env = process.env.CHECKIN_ENV ?? "dev";
