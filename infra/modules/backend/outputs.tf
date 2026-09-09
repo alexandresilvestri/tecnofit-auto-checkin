@@ -9,3 +9,7 @@ output "scheduler_role_arn" {
 output "schedule_group_name" {
   value = aws_scheduler_schedule_group.this.name
 }
+
+output "api_endpoint" {
+  value = aws_apigatewayv2_api.this.api_endpoint
+}

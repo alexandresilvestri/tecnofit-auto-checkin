@@ -7,6 +7,7 @@ let handler: typeof import("../../../apps/functions/checkin-worker/index").handl
 
 beforeAll(async () => {
   vi.stubEnv("TABLE_MAIN", "checkin-test-main");
+  vi.stubEnv("TABLE_AUDIT", "checkin-test-audit");
   vi.stubEnv("POWERTOOLS_LOG_LEVEL", "SILENT");
   ({ handler } = await import("../../../apps/functions/checkin-worker/index"));
 });

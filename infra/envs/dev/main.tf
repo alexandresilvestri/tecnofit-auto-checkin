@@ -35,10 +35,18 @@ module "backend" {
   artifact_version = var.artifact_version
   main_table_name  = module.data.main_table_name
   main_table_arn   = module.data.main_table_arn
+  audit_table_name = module.data.audit_table_name
+  audit_table_arn  = module.data.audit_table_arn
   token_key_arn    = module.data.token_key_arn
 }
 
 module "data" {
   source = "../../modules/data"
   env    = "dev"
+}
+
+module "frontend" {
+  source       = "../../modules/frontend"
+  env          = "dev"
+  api_endpoint = module.backend.api_endpoint
 }

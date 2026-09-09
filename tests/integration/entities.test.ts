@@ -6,16 +6,18 @@ import {
   isConditionalFailure,
   type Entities,
 } from "../../packages/core/db/entities.js";
-import { awsConfig, createMainTable, resetMoto } from "./setup/aws.js";
+import { awsConfig, createAuditTable, createMainTable, resetMoto } from "./setup/aws.js";
 
 const raw = new DynamoDBClient(awsConfig);
 let table: string;
+let audit: string;
 let e: Entities;
 
 beforeAll(async () => {
   await resetMoto();
   table = await createMainTable();
-  e = createEntities(DynamoDBDocumentClient.from(raw), table);
+  audit = await createAuditTable();
+  e = createEntities(DynamoDBDocumentClient.from(raw), { main: table, audit });
 });
 
 it("writes raw profile keys", async () => {
@@ -103,4 +105,113 @@ it("updates GSI2SK when status changes", async () => {
   );
   expect(out.Item?.GSI2SK?.S).toBe("success#u_1");
   expect(out.Item?.status?.S).toBe("success");
+});
+
+it("writes raw invite keys", async () => {
+  await e.invite
+    .create({
+      inviteId: "h1",
+      status: "pending",
+      expiresAt: 1000,
+      attempts: 0,
+      createdBy: "cli",
+      createdAt: "2026-01-01T00:00:00Z",
+      ttl: 2000,
+    })
+    .go();
+  const out = await raw.send(
+    new GetItemCommand({
+      TableName: table,
+      Key: { PK: { S: "INVITE#h1" }, SK: { S: "META" } },
+    }),
+  );
+  expect(out.Item?.GSI2PK?.S).toBe("ENTITY#INVITE");
+  expect(out.Item?.GSI2SK?.S).toBe("2026-01-01T00:00:00Z");
+});
+
+it("writes raw session keys", async () => {
+  await e.session
+    .create({
+      sessionId: "s1",
+      userId: "u_1",
+      createdAt: "2026-01-01T00:00:00Z",
+      lastSeenAt: "2026-01-01T00:00:00Z",
+      ip: "1.1.1.1",
+      userAgent: "ua",
+    })
+    .go();
+  const out = await raw.send(
+    new GetItemCommand({
+      TableName: table,
+      Key: { PK: { S: "SESSION#s1" }, SK: { S: "META" } },
+    }),
+  );
+  expect(out.Item?.GSI1PK?.S).toBe("USER#u_1");
+  expect(out.Item?.GSI1SK?.S).toBe("SESSION#2026-01-01T00:00:00Z");
+});
+
+it("writes raw loginFail keys", async () => {
+  await e.loginFail.create({ email: "a@b.c", count: 1, ttl: 5 }).go();
+  const out = await raw.send(
+    new GetItemCommand({
+      TableName: table,
+      Key: { PK: { S: "LOGINFAIL#a@b.c" }, SK: { S: "META" } },
+    }),
+  );
+  expect(out.Item?.count?.N).toBe("1");
+});
+
+it("writes raw audit keys", async () => {
+  await e.audit
+    .create({
+      day: "2026-01-01",
+      at: "2026-01-01T10:00:00.000Z",
+      eventId: "ev1",
+      actorType: "user",
+      actorId: "u_1",
+      action: "user.login",
+      targetId: "t1",
+      result: "success",
+      metadata: { reason: "x" },
+      ttl: 9,
+    })
+    .go();
+  const out = await raw.send(
+    new GetItemCommand({
+      TableName: audit,
+      Key: {
+        PK: { S: "DAY#2026-01-01" },
+        SK: { S: "2026-01-01T10:00:00.000Z#ev1" },
+      },
+    }),
+  );
+  expect(out.Item?.GSI1PK?.S).toBe("ACTOR#u_1");
+  expect(out.Item?.GSI1SK?.S).toBe("2026-01-01T10:00:00.000Z");
+  expect(out.Item?.GSI2PK?.S).toBe("TARGET#t1");
+});
+
+it("transaction fails second time on non-pending invite", async () => {
+  await e.invite
+    .create({
+      inviteId: "h2",
+      status: "pending",
+      expiresAt: 1000,
+      attempts: 0,
+      createdBy: "cli",
+      createdAt: "2026-01-02T00:00:00Z",
+      ttl: 2000,
+    })
+    .go();
+  const redeem = () =>
+    e.service.transaction
+      .write(({ invite }) => [
+        invite
+          .patch({ inviteId: "h2" })
+          .set({ status: "used", usedBy: "u_2" })
+          .where((a, { eq }) => eq(a.status, "pending"))
+          .commit(),
+      ])
+      .go();
+  expect((await redeem()).canceled).toBe(false);
+  expect((await redeem()).canceled).toBe(true);
 });

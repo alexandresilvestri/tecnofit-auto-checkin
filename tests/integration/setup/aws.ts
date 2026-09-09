@@ -25,8 +25,19 @@ export async function createMainTable(): Promise<string> {
   return name;
 }
 
+export async function createAuditTable(): Promise<string> {
+  const name = "checkin-test-audit";
+  await new DynamoDBClient(awsConfig).send(
+    new CreateTableCommand(mainTableInput(name)),
+  );
+  return name;
+}
+
 export async function createTestEntities() {
-  return createEntities(DynamoDBDocumentClient.from(new DynamoDBClient(awsConfig)), await createMainTable());
+  return createEntities(DynamoDBDocumentClient.from(new DynamoDBClient(awsConfig)), {
+    main: await createMainTable(),
+    audit: await createAuditTable(),
+  });
 }
 
 export async function createKey(kms: KMSClient): Promise<string> {
