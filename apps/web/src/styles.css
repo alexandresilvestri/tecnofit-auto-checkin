@@ -70,3 +70,36 @@ button:disabled { background: #9ca3af; cursor: not-allowed; }
 .error { color: #b91c1c; }
 
 .ok { color: #047857; }
+
+.nav { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; }
+
+.nav a { color: #1d4ed8; font-weight: 600; }
+
+.banner { padding: 0.75rem; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; }
+
+.item { padding: 0.75rem 0; border-top: 1px solid #e5e7eb; }
+
+.item h2 { margin: 0; font-size: 1.1rem; }
+
+.item p { margin: 0.25rem 0; }
+
+.actions { display: flex; gap: 0.5rem; }
+
+.actions button { flex: 1; }
+
+.danger-btn, .danger button { background: #b91c1c; }
+
+.danger button:disabled { background: #9ca3af; }
+
+.danger { margin-top: 1.5rem; }
+
+fieldset { margin: 0; border: 1px solid #d1d5db; border-radius: 6px; }
+
+input[type="text"],
+input[type="date"] {
+  width: 100%;
+  padding: 0.75rem;
+  font: inherit;
+  border: 1px solid #9ca3af;
+  border-radius: 6px;
+}

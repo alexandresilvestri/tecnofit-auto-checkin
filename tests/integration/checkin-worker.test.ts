@@ -138,7 +138,13 @@ it("checks in on the first POST", async () => {
   const input = await seed();
   expect(await run(input)).toBe("success");
   const row = await exec(input.scheduleId);
-  expect(row).toMatchObject({ status: "success", attempts: 1, checkInId: "210904124", userId: input.userId });
+  expect(row).toMatchObject({ status: "success",
+    attempts: 1,
+    checkInId: "210904124",
+    userId: input.userId,
+    className: "TREINO NO RANCHO",
+    startTime: "07:00",
+  });
   expect(row!.latencyMs).toBeGreaterThanOrEqual(0);
   expect(row!.ttl).toBe(Math.floor(Date.parse(SCHEDULED) / 1000) + 90 * 86400);
   expect(posts).toHaveLength(1);
@@ -241,7 +247,12 @@ it("does nothing on a duplicate invocation", async () => {
 it("skips a suspended profile without calling Tecnofit", async () => {
   const input = await seed({}, "suspended");
   expect(await run(input)).toBe("skipped");
-  expect(await exec(input.scheduleId)).toMatchObject({ status: "skipped", attempts: 0 });
+  expect(await exec(input.scheduleId)).toMatchObject({
+    status: "skipped",
+    attempts: 0,
+    className: "TREINO NO RANCHO",
+    startTime: "07:00",
+  });
   expect([lists, details, posts.length]).toEqual([0, 0, 0]);
 });
 
