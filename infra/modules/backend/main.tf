@@ -81,6 +81,42 @@ locals {
         }
       ]
     }
+    api-admin = {
+      env = {
+        TABLE_MAIN         = var.main_table_name
+        TABLE_AUDIT        = var.audit_table_name
+        SCHEDULE_GROUP     = aws_scheduler_schedule_group.this.name
+        WORKER_ARN         = aws_lambda_function.worker.arn
+        SCHEDULER_ROLE_ARN = aws_iam_role.scheduler.arn
+      }
+      statements = [
+        {
+          Effect   = "Allow"
+          Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:BatchWriteItem"]
+          Resource = [var.main_table_arn, "${var.main_table_arn}/index/*"]
+        },
+        {
+          Effect   = "Allow"
+          Action   = ["dynamodb:PutItem", "dynamodb:Query"]
+          Resource = [var.audit_table_arn, "${var.audit_table_arn}/index/*"]
+        },
+        {
+          Effect   = "Allow"
+          Action   = ["scheduler:UpdateSchedule", "scheduler:DeleteSchedule"]
+          Resource = "arn:aws:scheduler:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:schedule/checkin-${var.env}/*"
+        },
+        {
+          Effect   = "Allow"
+          Action   = "iam:PassRole"
+          Resource = aws_iam_role.scheduler.arn
+          Condition = {
+            StringEquals = {
+              "iam:PassedToService" = "scheduler.amazonaws.com"
+            }
+          }
+        }
+      ]
+    }
     authorizer-user = {
       env = {
         TABLE_MAIN  = var.main_table_name

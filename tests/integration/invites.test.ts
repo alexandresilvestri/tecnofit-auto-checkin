@@ -12,7 +12,11 @@ import {
   createInvite,
   InvalidCredentials,
   InviteInvalid,
+  InviteNotFound,
+  InviteNotPending,
+  listInvites,
   redeemInvite,
+  revokeInvite,
   type PublicDeps,
 } from "../../packages/core/domain/invites.js";
 import { TecnofitInvalidResponse } from "../../packages/core/tecnofit/client.js";
@@ -292,4 +296,44 @@ it("never stores the password or raw secrets", async () => {
     expect(main).not.toContain(secret);
   }
   expect(audit).not.toContain(hashSecret(sessionToken));
+});
+
+it("audits invites created by an admin as admin", async () => {
+  const { inviteId } = await createInvite(deps(), { createdBy: "admin@example.com" });
+  const [created] = await events(inviteId);
+  expect(created).toMatchObject({ actorType: "admin", actorId: "admin@example.com" });
+});
+
+it("revokes only pending invites", async () => {
+  const pending = await createInvite(deps(), { createdBy: "cli" });
+  await revokeInvite(e, pending.inviteId);
+  expect((await invite(pending.inviteId))?.status).toBe("revoked");
+  await expect(revokeInvite(e, pending.inviteId)).rejects.toBeInstanceOf(InviteNotPending);
+
+  const used = await createInvite(deps(), { createdBy: "cli" });
+  await redeemInvite(deps(), input(used.token, nextEmail()), META);
+  await expect(revokeInvite(e, used.inviteId)).rejects.toBeInstanceOf(InviteNotPending);
+  expect((await invite(used.inviteId))?.status).toBe("used");
+
+  const burned = await createInvite(deps(), { createdBy: "cli" });
+  await e.invite.patch({ inviteId: burned.inviteId }).set({ status: "burned" }).go();
+  await expect(revokeInvite(e, burned.inviteId)).rejects.toBeInstanceOf(InviteNotPending);
+
+  await expect(revokeInvite(e, "missing")).rejects.toBeInstanceOf(InviteNotFound);
+  expect((await e.invite.get({ inviteId: "missing" }).go()).data).toBeNull();
+});
+
+it("lists invites newest first and shows lapsed pending ones as expired", async () => {
+  t = NOW + 10 * 3600_000;
+  const old = await createInvite(deps(), { createdBy: "cli" });
+  t += 60_000;
+  const fresh = await createInvite(deps(), { createdBy: "cli" });
+  const list = await listInvites(e, old.expiresAt + 1000);
+  const ids = list.map((i) => i.inviteId);
+  expect(ids.indexOf(fresh.inviteId)).toBeLessThan(ids.indexOf(old.inviteId));
+  expect(list.find((i) => i.inviteId === old.inviteId)?.status).toBe("expired");
+  expect(list.find((i) => i.inviteId === fresh.inviteId)?.status).toBe("pending");
+  const soon = await listInvites(e, t);
+  expect(soon.find((i) => i.inviteId === old.inviteId)?.status).toBe("pending");
+  expect((await invite(old.inviteId))?.status).toBe("pending");
 });

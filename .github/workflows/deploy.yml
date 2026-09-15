@@ -57,14 +57,17 @@ jobs:
           for _ in $(seq 10); do
             outputs=$(hcp "workspaces/$workspace_id/current-state-version-outputs" || true)
             web_bucket=$(output web_bucket) distribution_id=$(output distribution_id) web_url=$(output web_url)
-            if [ -n "$web_bucket" ] && [ -n "$distribution_id" ] && [ -n "$web_url" ]; then break; fi
+            admin_client_id=$(output admin_client_id) auth_domain=$(output auth_domain)
+            if [ -n "$web_bucket" ] && [ -n "$distribution_id" ] && [ -n "$web_url" ] && [ -n "$admin_client_id" ] && [ -n "$auth_domain" ]; then break; fi
             sleep 10
           done
-          test -n "$web_bucket" && test -n "$distribution_id" && test -n "$web_url"
+          test -n "$web_bucket" && test -n "$distribution_id" && test -n "$web_url" && test -n "$admin_client_id" && test -n "$auth_domain"
           {
             echo "WEB_BUCKET=$web_bucket"
             echo "DISTRIBUTION_ID=$distribution_id"
             echo "WEB_URL=$web_url"
+            echo "VITE_COGNITO_CLIENT_ID=$admin_client_id"
+            echo "VITE_COGNITO_DOMAIN=$auth_domain"
           } >> "$GITHUB_ENV"
       - run: npm run web:build
       - run: aws s3 sync apps/web/dist "s3://$WEB_BUCKET" --delete --exclude index.html
