@@ -1,6 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { createEntities } from "@checkin/core/db/entities";
+import { fromCloudFront } from "@checkin/core/http/origin";
 import { resolveSession } from "@checkin/core/domain/sessions";
 import type { APIGatewayRequestAuthorizerEventV2 } from "aws-lambda";
 
@@ -12,6 +13,7 @@ const entities = createEntities(DynamoDBDocumentClient.from(new DynamoDBClient({
 const denied = { isAuthorized: false } as const;
 
 export const handler = async (event: APIGatewayRequestAuthorizerEventV2) => {
+  if (!fromCloudFront(event.headers?.["x-origin-verify"], process.env.ORIGIN_SECRET!)) return denied;
   const token = event.cookies?.find((c) => c.startsWith("sid="))?.slice(4);
   if (!token) return denied;
   const session = await resolveSession(entities, token);

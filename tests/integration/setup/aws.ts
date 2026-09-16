@@ -17,16 +17,14 @@ export async function resetMoto(): Promise<void> {
   await fetch(`${MOTO_ENDPOINT}/moto-api/reset`, { method: "POST" });
 }
 
-export async function createMainTable(): Promise<string> {
-  const name = "checkin-test-main";
+export async function createMainTable(name = "checkin-test-main"): Promise<string> {
   await new DynamoDBClient(awsConfig).send(
     new CreateTableCommand(mainTableInput(name)),
   );
   return name;
 }
 
-export async function createAuditTable(): Promise<string> {
-  const name = "checkin-test-audit";
+export async function createAuditTable(name = "checkin-test-audit"): Promise<string> {
   await new DynamoDBClient(awsConfig).send(
     new CreateTableCommand(mainTableInput(name)),
   );

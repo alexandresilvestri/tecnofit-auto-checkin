@@ -23,6 +23,7 @@ import {
   revokeUserSessions,
   suspendUser,
 } from "@checkin/core/domain/users";
+import { fromCloudFront } from "@checkin/core/http/origin";
 import { handle } from "@hono/aws-lambda";
 import { Hono } from "hono";
 import type { Context } from "hono";
@@ -91,6 +92,10 @@ const isAdmin = (groups: unknown) => {
 const app = new Hono<Env>();
 
 app.use("*", async (c, next) => {
+  if (!fromCloudFront(c.req.header("x-origin-verify"), process.env.ORIGIN_SECRET!)) {
+    logger.info("request", { route: c.req.path, status: 403 });
+    return c.json({ message: "Acesso negado." }, 403);
+  }
   if (!isAdmin(claims(c)["cognito:groups"])) {
     logger.info("request", { route: c.req.path, status: 403 });
     return c.json({ message: "Acesso negado." }, 403);

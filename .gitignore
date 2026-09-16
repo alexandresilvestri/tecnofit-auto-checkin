@@ -3,3 +3,5 @@ dist/
 .superpowers/
 .terraform/
 infra/envs/*/artifact.auto.tfvars
+test-results/
+playwright-report/

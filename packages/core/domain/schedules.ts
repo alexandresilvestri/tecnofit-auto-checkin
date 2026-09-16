@@ -107,6 +107,26 @@ function scheduleRequest(deps: ScheduleDeps, userId: string, scheduleId: string,
   };
 }
 
+export async function recreateSchedule(
+  deps: ScheduleDeps,
+  row: EntityItem<Entities["schedule"]>,
+  state: "ENABLED" | "DISABLED" | null = null,
+): Promise<boolean> {
+  const spec = specOf(row);
+  if (spec.kind === "once" && nextClass(spec, deps.now()) === null) return false;
+  const request = {
+    ...scheduleRequest(deps, row.userId, row.scheduleId, spec),
+    State: state ?? (row.active ? ("ENABLED" as const) : ("DISABLED" as const)),
+  };
+  try {
+    await deps.scheduler.send(new CreateScheduleCommand(request));
+  } catch (err) {
+    if ((err as { name?: string }).name !== "ConflictException") throw err;
+    if (state) await deps.scheduler.send(new UpdateScheduleCommand(request));
+  }
+  return true;
+}
+
 export async function addSchedule(deps: ScheduleDeps, input: AddScheduleInput): Promise<string> {
   const { entities, scheduler } = deps;
   const { userId, className, allowWaitingList, refDate, ...spec } = input;

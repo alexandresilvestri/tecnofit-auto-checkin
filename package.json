@@ -20,14 +20,17 @@
     "connect": "tsx scripts/connect.ts",
     "schedule": "tsx scripts/schedule.ts",
     "invite": "tsx scripts/invite.ts",
+    "migrate": "tsx scripts/migrate.ts",
     "web:dev": "npm -w apps/web run dev",
-    "web:build": "npm -w apps/web run build"
+    "web:build": "npm -w apps/web run build",
+    "e2e": "playwright test"
   },
   "devDependencies": {
     "@aws-sdk/client-cloudfront": "3.1154.0",
     "@aws-sdk/client-dynamodb": "3.1154.0",
     "@aws-sdk/client-sts": "3.1154.0",
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.64.0",
     "@types/aws-lambda": "8.10.164",
     "@types/node": "26.6.5",
     "aws-sdk-client-mock": "4.1.0",

@@ -128,6 +128,11 @@ resource "aws_cloudfront_distribution" "web" {
       origin_protocol_policy = "https-only"
       origin_ssl_protocols   = ["TLSv1.2"]
     }
+
+    custom_header {
+      name  = "X-Origin-Verify"
+      value = var.origin_secret
+    }
   }
 
   default_cache_behavior {

@@ -69,7 +69,7 @@ resource "aws_iam_role" "github_deploy" {
       Condition = {
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:ref:refs/heads/main"
+          "token.actions.githubusercontent.com:sub" = ["repo:${var.github_repo}:ref:refs/heads/main", "repo:${var.github_repo}:environment:prod"]
         }
       }
     }]
@@ -91,7 +91,7 @@ resource "aws_iam_role_policy" "github_deploy" {
       {
         Effect   = "Allow"
         Action   = "s3:ListBucket"
-        Resource = "arn:aws:s3:::checkin-*-web-*"
+        Resource = [aws_s3_bucket.artifacts.arn, "arn:aws:s3:::checkin-*-web-*"]
       },
       {
         Effect   = "Allow"
@@ -160,6 +160,63 @@ resource "aws_iam_role_policy" "hcp_dev_iam" {
         "iam:PassRole"
       ]
       Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/checkin-dev-*"
+    }]
+  })
+}
+
+resource "aws_iam_role" "hcp_prod" {
+  name = "checkin-hcp-terraform-prod"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Principal = { Federated = aws_iam_openid_connect_provider.hcp.arn }
+      Condition = {
+        StringEquals = {
+          "app.terraform.io:aud" = "aws.workload.identity"
+        }
+        StringLike = {
+          "app.terraform.io:sub" = "organization:${var.hcp_org}:project:${var.hcp_project}:workspace:checkin-prod:run_phase:*"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "hcp_prod_power_user" {
+  role       = aws_iam_role.hcp_prod.name
+  policy_arn = "arn:aws:iam::aws:policy/PowerUserAccess"
+}
+
+resource "aws_iam_role_policy" "hcp_prod_iam" {
+  name = "checkin-prod-iam"
+  role = aws_iam_role.hcp_prod.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      # Terraform must manage the prod roles and their inline policies; scoped to role/checkin-prod-*.
+      # nosemgrep: terraform.lang.security.iam.no-iam-priv-esc-funcs.no-iam-priv-esc-funcs, terraform.lang.security.iam.no-iam-resource-exposure.no-iam-resource-exposure
+      Action = [
+        "iam:CreateRole",
+        "iam:GetRole",
+        "iam:UpdateRole",
+        "iam:DeleteRole",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:UpdateAssumeRolePolicy",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListInstanceProfilesForRole",
+        "iam:PutRolePolicy",
+        "iam:GetRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:PassRole"
+      ]
+      Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/checkin-prod-*"
     }]
   })
 }
