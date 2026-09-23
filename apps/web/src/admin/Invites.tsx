@@ -1,6 +1,17 @@
+import { Copy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { stamp } from "../pages/Schedules";
+import { Alert } from "../ui/Alert";
+import { Badge, type Tone } from "../ui/Badge";
+import { Button } from "../ui/Button";
+import { Confirm } from "../ui/Confirm";
+import { EmptyState } from "../ui/EmptyState";
+import { Field } from "../ui/Field";
+import { Input } from "../ui/Input";
+import { PageHeader } from "../ui/PageHeader";
+import { Table } from "../ui/Table";
 import { del, errorMessage, get, post } from "./api";
+import { ErrorText, Loading } from "../ui/Text";
 
 type Invite = {
   inviteId: string;
@@ -19,6 +30,12 @@ const STATUS: Record<string, string> = {
   revoked: "Revogado",
 };
 
+const TONE: Record<string, Tone> = {
+  pending: "info",
+  used: "success",
+  expired: "neutral",
+  revoked: "error",
+};
 
 const clock = (ms: number) => {
   const total = Math.max(0, Math.ceil(ms / 1000));
@@ -47,12 +64,15 @@ function Link({ token, expiresAt }: { token: string; expiresAt: string }) {
   }
 
   return (
-    <div className="banner">
-      <p className="mono">{url}</p>
+    <Alert tone="success" className="flex flex-col gap-3">
+      <p className="font-mono text-fg-emphasis break-all">{url}</p>
       <p>{left > 0 ? `Expira em ${clock(left)}` : "Expirado"}</p>
-      {failed && <p role="alert" className="error">Não foi possível copiar. Copie o link manualmente.</p>}
-      <button type="button" onClick={copy}>{copied ? "Copiado" : "Copiar link"}</button>
-    </div>
+      {failed && <ErrorText>Não foi possível copiar. Copie o link manualmente.</ErrorText>}
+      <Button variant="secondary" className="self-start" onClick={copy}>
+        <Copy />
+        {copied ? "Copiado" : "Copiar link"}
+      </Button>
+    </Alert>
   );
 }
 
@@ -61,6 +81,7 @@ export function Invites() {
   const [label, setLabel] = useState("");
   const [created, setCreated] = useState<{ token: string; expiresAt: string }>();
   const [error, setError] = useState("");
+  const [revoking, setRevoking] = useState<string>();
 
   function load() {
     get<Invite[]>("/api/admin/invites")
@@ -83,7 +104,7 @@ export function Invites() {
   }
 
   async function revoke(id: string) {
-    if (!confirm("Revogar este convite?")) return;
+    setRevoking(undefined);
     setError("");
     try {
       await del(`/api/admin/invites/${encodeURIComponent(id)}`);
@@ -94,57 +115,44 @@ export function Invites() {
   }
 
   return (
-    <section>
-      <h1>Convites</h1>
-      <form onSubmit={create}>
-        <label htmlFor="invite-label">Rótulo (opcional)</label>
-        <input
-          id="invite-label"
-          type="text"
-          maxLength={60}
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-        />
-        <button type="submit">Gerar convite</button>
+    <section className="flex flex-col gap-4">
+      <PageHeader title="Convites" />
+      <form onSubmit={create} className="flex items-end gap-2">
+        <Field label="Rótulo (opcional)" htmlFor="invite-label" className="max-w-sm flex-1">
+          <Input id="invite-label" type="text" maxLength={60} value={label} onChange={(e) => setLabel(e.target.value)} />
+        </Field>
+        <Button type="submit">Gerar convite</Button>
       </form>
       {created && <Link key={created.token} {...created} />}
-      {error && <p role="alert" className="error">{error}</p>}
-      {!items && !error && <p>Carregando...</p>}
-      {items?.length === 0 && <p>Nenhum convite.</p>}
+      {error && <ErrorText>{error}</ErrorText>}
+      {!items && !error && <Loading />}
+      {items?.length === 0 && <EmptyState title="Nenhum convite." text="Gere um link e envie para o aluno." />}
       {items && items.length > 0 && (
-        <div className="scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Rótulo</th>
-                <th>Status</th>
-                <th>Criado</th>
-                <th>Expira</th>
-                <th>Usado por</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((i) => (
-                <tr key={i.inviteId}>
-                  <td>{i.label ?? "—"}</td>
-                  <td>{STATUS[i.status] ?? i.status}</td>
-                  <td>{stamp(i.createdAt)}</td>
-                  <td>{stamp(i.expiresAt)}</td>
-                  <td>{i.usedBy ? <a href={`/admin/usuarios/${i.usedBy}`}>{i.usedBy}</a> : "—"}</td>
-                  <td>
-                    {i.status === "pending" && (
-                      <button type="button" className="danger-btn" onClick={() => revoke(i.inviteId)}>
-                        Revogar
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table head={["Rótulo", "Status", "Criado", "Expira", "Usado por", ""]}>
+          {items.map((i) => (
+            <tr key={i.inviteId}>
+              <td className="text-fg-emphasis">{i.label ?? "—"}</td>
+              <td><Badge tone={TONE[i.status] ?? "neutral"}>{STATUS[i.status] ?? i.status}</Badge></td>
+              <td>{stamp(i.createdAt)}</td>
+              <td>{stamp(i.expiresAt)}</td>
+              <td>{i.usedBy ? <a href={`/admin/usuarios/${i.usedBy}`}>{i.usedBy}</a> : "—"}</td>
+              <td className="text-right">
+                {i.status === "pending" && (
+                  <Button variant="danger" onClick={() => setRevoking(i.inviteId)}>Revogar</Button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </Table>
       )}
+      <Confirm
+        open={revoking !== undefined}
+        title="Revogar convite?"
+        text="O link deixa de funcionar na hora."
+        action="Revogar"
+        onConfirm={() => revoking && revoke(revoking)}
+        onClose={() => setRevoking(undefined)}
+      />
     </section>
   );
 }

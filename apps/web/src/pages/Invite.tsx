@@ -1,6 +1,12 @@
 import { useEffect, useState, type SubmitEvent } from "react";
 import { errorMessage, post } from "../api";
 import { CONSENT_TEXT, CONSENT_VERSION } from "../consent";
+import { Button } from "../ui/Button";
+import { Check } from "../ui/Check";
+import { Field } from "../ui/Field";
+import { Input } from "../ui/Input";
+import { PageHeader } from "../ui/PageHeader";
+import { ErrorText, Loading } from "../ui/Text";
 
 const token = location.hash.replace(/^#/, "");
 const INVALID = "Convite inválido ou expirado.";
@@ -44,46 +50,26 @@ export function Invite() {
     }
   }
 
-  if (valid === undefined) return <p>Verificando convite...</p>;
-  if (!valid) return <p role="alert" className="error">{error || INVALID}</p>;
+  if (valid === undefined) return <Loading>Verificando convite...</Loading>;
+  if (!valid) return <ErrorText>{error || INVALID}</ErrorText>;
 
   return (
-    <form onSubmit={submit}>
-      <h1>Criar conta</h1>
-      <label htmlFor="email">E-mail da Tecnofit</label>
-      <input
-        id="email"
-        type="email"
-        autoComplete="username"
-        required
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
-      <label htmlFor="password">Senha da Tecnofit</label>
-      <input
-        id="password"
-        type="password"
-        autoComplete="current-password"
-        required
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
-      <section className="consent" aria-label="Termo de consentimento">
+    <form onSubmit={submit} className="flex flex-col gap-4">
+      <PageHeader title="Criar conta" />
+      <Field label="E-mail da Tecnofit" htmlFor="email">
+        <Input id="email" size="lg" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
+      </Field>
+      <Field label="Senha da Tecnofit" htmlFor="password">
+        <Input id="password" size="lg" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+      </Field>
+      <section aria-label="Termo de consentimento" className="flex flex-col gap-2 rounded-2xl border border-line p-4 text-xs/4 text-fg">
         {CONSENT_TEXT.map((line) => (
           <p key={line}>{line}</p>
         ))}
       </section>
-      <label className="check" htmlFor="consent">
-        <input
-          id="consent"
-          type="checkbox"
-          checked={consent}
-          onChange={(e) => setConsent(e.target.checked)}
-        />
-        Li e concordo com o termo acima.
-      </label>
-      {error && <p role="alert" className="error">{error}</p>}
-      <button type="submit" disabled={!consent || busy}>Criar conta</button>
+      <Check id="consent" label="Li e concordo com o termo acima." checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+      {error && <ErrorText>{error}</ErrorText>}
+      <Button type="submit" size="lg" disabled={!consent || busy}>Criar conta</Button>
     </form>
   );
 }

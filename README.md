@@ -1,31 +1,31 @@
 # Tecnofit Auto Check-in
 
-Check-in automático em aulas do box Tecnofit. Acesso somente por convite.
+Automatic check-in for classes at a Tecnofit box. Invite-only access.
 
-O usuário conecta a conta Tecnofit, agenda uma aula (única ou semanal) e o sistema faz o check-in sozinho. A regra do Tecnofit libera o check-in 12 h antes da aula; o job roda em `aula − 11h59`, fuso `America/Sao_Paulo`.
+The user connects their Tecnofit account, schedules a class (one-off or weekly) and the system checks in on its own. Tecnofit opens check-in 12 h before the class; the job runs at `class − 11h59`, timezone `America/Sao_Paulo`.
 
-## Arquitetura
+## Architecture
 
-- CloudFront + S3: SPA (`apps/web`) e proxy de `/api/*`.
-- API Gateway HTTP API + Lambdas (`apps/functions/*`): `api-public`, `api-user`, `api-admin`, `authorizer-user`, worker de check-in. Acesso direto ao API Gateway devolve 403 (header `X-Origin-Verify`).
-- DynamoDB: `checkin-<env>-main` e `checkin-<env>-audit` (PITR ligado).
-- EventBridge Scheduler: um schedule por agendamento, grupo `checkin-<env>`.
-- KMS: tokens Tecnofit cifrados (`alias/checkin-<env>-token`).
-- Cognito: pool `checkin-<env>-admin` (MFA obrigatório) para o admin.
-- Infra em Terraform (`infra/`), aplicado pelo HCP Terraform.
+- CloudFront + S3: SPA (`apps/web`) and `/api/*` proxy.
+- API Gateway HTTP API + Lambdas (`apps/functions/*`): `api-public`, `api-user`, `api-admin`, `authorizer-user`, check-in worker. Direct access to API Gateway returns 403 (`X-Origin-Verify` header).
+- DynamoDB: `checkin-<env>-main` and `checkin-<env>-audit` (PITR enabled).
+- EventBridge Scheduler: one schedule per booking, group `checkin-<env>`.
+- KMS: encrypted Tecnofit tokens (`alias/checkin-<env>-token`).
+- Cognito: pool `checkin-<env>-admin` (MFA required) for the admin.
+- Infra in Terraform (`infra/`), applied by HCP Terraform.
 
-## Ambientes
+## Environments
 
-| Ambiente | Workspace HCP | URL |
+| Environment | HCP workspace | URL |
 | --- | --- | --- |
 | dev | `checkin-dev` | https://d3d4q56x093hg3.cloudfront.net |
 | prod | `checkin-prod` | https://dquf6r20z50xs.cloudfront.net |
 
-Org `ATS_org`, projeto `tecnofit-auto-checkin`, região `us-east-1`. Bootstrap (roles OIDC): workspace `checkin-bootstrap`.
+Org `ATS_org`, project `tecnofit-auto-checkin`, region `us-east-1`. Bootstrap (OIDC roles): workspace `checkin-bootstrap`.
 
-Fluxo: PR (testes + plan) → merge em `main` faz deploy no dev → `promote.yml`, disparado à mão a partir de `main`, leva um `sha` para prod. Detalhes em [docs/runbook.md](docs/runbook.md).
+Flow: PR (tests + plan) → merge into `main` deploys to dev → `promote.yml`, triggered manually from `main`, takes a `sha` to prod. Details in [docs/runbook.md](docs/runbook.md).
 
-## Desenvolvimento local
+## Local development
 
 Node >= 24 (`.nvmrc`).
 
@@ -41,26 +41,26 @@ npm run build
 npm run web:dev
 ```
 
-## Scripts de operação
+## Operations scripts
 
-Usam as credenciais AWS do shell. `CHECKIN_ENV` escolhe o ambiente (padrão `dev`).
+Use the shell's AWS credentials. `CHECKIN_ENV` selects the environment (default `dev`).
 
 ```bash
 TECNOFIT_EMAIL=... TECNOFIT_PASSWORD=... CHECKIN_ENV=dev npm run connect
-CHECKIN_ENV=dev npm run invite -- --label "Fulano"
+CHECKIN_ENV=dev npm run invite -- --label "John Doe"
 CHECKIN_ENV=dev npm run schedule -- classes --user <userId> --date YYYY-MM-DD
-CHECKIN_ENV=dev npm run schedule -- add --user <userId> --class-name "<nome>" --start HH:mm --date YYYY-MM-DD [--weekdays 1,3,5] [--waiting-list]
+CHECKIN_ENV=dev npm run schedule -- add --user <userId> --class-name "<name>" --start HH:mm --date YYYY-MM-DD [--weekdays 1,3,5] [--waiting-list]
 CHECKIN_ENV=dev npm run schedule -- list --user <userId>
 CHECKIN_ENV=dev npm run schedule -- remove --user <userId> --schedule <scheduleId>
 npm run migrate
 npm run migrate -- --apply
 ```
 
-- `connect`: cria/atualiza perfil e conta Tecnofit de um usuário.
-- `invite`: gera link `/convite#<token>` com expiração.
-- `schedule`: lista aulas e gerencia agendamentos.
-- `migrate`: copia usuários de dev para prod (simulação sem `--apply`); sempre usa dev como origem e prod como destino.
+- `connect`: creates/updates a user's profile and Tecnofit account.
+- `invite`: generates a `/convite#<token>` link with expiry.
+- `schedule`: lists classes and manages bookings.
+- `migrate`: copies users from dev to prod (dry run without `--apply`); always uses dev as source and prod as target.
 
-## Operação
+## Operations
 
-[docs/runbook.md](docs/runbook.md): deploy, promoção, rollback, incidentes, restauração, rotação de segredo, alarmes, reset do admin e destruição de ambiente.
+[docs/runbook.md](docs/runbook.md): deploy, promotion, rollback, incidents, restore, secret rotation, alarms, admin reset and environment teardown.

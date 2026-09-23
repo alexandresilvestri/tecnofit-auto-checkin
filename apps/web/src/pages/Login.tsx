@@ -1,5 +1,10 @@
 import { useState, type SubmitEvent } from "react";
 import { errorMessage, post } from "../api";
+import { Button } from "../ui/Button";
+import { Field } from "../ui/Field";
+import { Input } from "../ui/Input";
+import { PageHeader } from "../ui/PageHeader";
+import { ErrorText } from "../ui/Text";
 
 export function Login() {
   const [email, setEmail] = useState("");
@@ -21,28 +26,16 @@ export function Login() {
   }
 
   return (
-    <form onSubmit={submit}>
-      <h1>Entrar</h1>
-      <label htmlFor="email">E-mail</label>
-      <input
-        id="email"
-        type="email"
-        autoComplete="username"
-        required
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
-      <label htmlFor="password">Senha da Tecnofit</label>
-      <input
-        id="password"
-        type="password"
-        autoComplete="current-password"
-        required
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
-      {error && <p role="alert" className="error">{error}</p>}
-      <button type="submit" disabled={busy}>Entrar</button>
+    <form onSubmit={submit} className="flex flex-col gap-4">
+      <PageHeader title="Entrar" />
+      <Field label="E-mail" htmlFor="email">
+        <Input id="email" size="lg" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
+      </Field>
+      <Field label="Senha da Tecnofit" htmlFor="password">
+        <Input id="password" size="lg" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+      </Field>
+      {error && <ErrorText>{error}</ErrorText>}
+      <Button type="submit" size="lg" disabled={busy}>Entrar</Button>
     </form>
   );
 }
