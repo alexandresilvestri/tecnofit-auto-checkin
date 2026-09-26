@@ -14,6 +14,8 @@ The user connects their Tecnofit account, schedules a class (one-off or weekly) 
 - Cognito: pool `checkin-<env>-admin` (MFA required) for the admin.
 - Infra in Terraform (`infra/`), applied by HCP Terraform.
 
+<img width="1058" height="913" alt="image" src="https://github.com/user-attachments/assets/a0c47960-3fd7-49f7-b08c-7401b8c52a32" />
+
 ## Environments
 
 | Environment | HCP workspace | URL |
