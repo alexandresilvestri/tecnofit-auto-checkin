@@ -1,0 +1,261 @@
+// Data model of tecnofit-auto-checkin for https://dbdiagram.io.
+// Source of truth: packages/core/db/entities.ts (ElectroDB) and infra/modules/data/main.tf.
+// DynamoDB has no foreign keys. Every Ref in this file is logical: the code keeps it, DynamoDB does not enforce it.
+// Schema "main" is the table checkin-<env>-main; schema "audit" is the table checkin-<env>-audit.
+// Key notes use the ElectroDB template syntax from entities.ts, e.g. USER#${userId}.
+// ElectroDB also writes __edb_e__ (entity name) and __edb_v__ (version "1") on every item; they are omitted below.
+// Types are DynamoDB types: string, number, boolean, list (of numbers) and any (map).
+
+Project tecnofit_auto_checkin {
+  database_type: 'DynamoDB'
+  Note: 'Two DynamoDB tables. main holds every entity except audit, in a single-table design. Both tables use PK/SK plus GSI1 and GSI2 (projection ALL) and the TTL attribute ttl.'
+}
+
+Enum main.profile_status {
+  active
+  suspended
+}
+
+Enum main.account_status {
+  ok
+  reconnect [note: 'Tecnofit returned 401; the user must log in again']
+}
+
+Enum main.schedule_kind {
+  weekly
+  once
+}
+
+Enum main.exec_status {
+  running [note: 'Claimed by the worker, not finished']
+  success
+  waitlisted
+  failed
+  skipped [note: 'Profile suspended or account in reconnect']
+}
+
+Enum main.invite_status {
+  pending
+  used
+  expired [note: 'Never stored; listInvites derives it from expiresAt']
+  revoked
+  burned [note: 'Five credential rejections during redeem']
+}
+
+Enum audit.actor_type {
+  user
+  anonymous
+  system
+  cli
+  admin
+}
+
+Enum audit.audit_result {
+  success
+  denied
+  error
+}
+
+Table main.profile {
+  PK string [not null, note: 'USER#${userId}']
+  SK string [not null, note: 'PROFILE']
+  GSI1PK string [not null, note: 'EMAIL#${tecnofitEmail}']
+  GSI1SK string [not null, note: 'PROFILE']
+  GSI2PK string [not null, note: 'ENTITY#USER']
+  GSI2SK string [not null, note: '${createdAt}']
+  userId string [not null, unique, note: 'u_<uuid>']
+  name string [not null, note: 'customer.name from GET /aluno/eu']
+  tecnofitEmail string [not null, note: 'Trimmed and lowercased login email']
+  tecnofitUserId number [not null, note: 'JWT claim user_id']
+  status main.profile_status [not null]
+  createdAt string [not null, note: 'ISO 8601 UTC']
+
+  indexes {
+    (PK, SK) [pk, name: 'table_key']
+    (GSI1PK, GSI1SK) [name: 'GSI1_byEmail']
+    (GSI2PK, GSI2SK) [name: 'GSI2_byCreated']
+  }
+
+  Note: 'One per user. No TTL.'
+}
+
+Table main.account {
+  PK string [not null, note: 'USER#${userId}']
+  SK string [not null, note: 'ACCOUNT#${empresaId}']
+  userId string [not null]
+  empresaId string [not null, note: 'JWT claim empresa_id as a string']
+  tokenEnc string [not null, note: 'Tecnofit JWT, KMS ciphertext in base64, encryption context {userId}']
+  tokenExp number [not null, note: 'JWT claim exp, epoch seconds']
+  boxName string [not null, note: 'Company name from GET /aluno/eu, or empresaId']
+  status main.account_status [not null]
+
+  indexes {
+    (PK, SK) [pk, name: 'table_key']
+  }
+
+  Note: 'Tecnofit connection. Keyed by empresaId; the code creates one per user. No GSIs. No TTL.'
+}
+
+Table main.schedule {
+  PK string [not null, note: 'USER#${userId}']
+  SK string [not null, note: 'SCHEDULE#${scheduleId}']
+  userId string [not null]
+  scheduleId string [not null, unique, note: 's_<uuid>; also the EventBridge Scheduler schedule name']
+  empresaId string [not null, note: 'Copied from the account']
+  className string [not null, note: 'Tecnofit event name']
+  startTime string [not null, note: 'HH:MM, America/Sao_Paulo']
+  kind main.schedule_kind [not null]
+  weekdays list [note: 'weekly only; numbers 0 (Sunday) to 6']
+  date string [note: 'once only; YYYY-MM-DD']
+  allowWaitingList boolean [not null]
+  active boolean [not null]
+  pausedBySuspension boolean [note: 'true while paused by an admin suspension']
+
+  indexes {
+    (PK, SK) [pk, name: 'table_key']
+  }
+
+  Note: 'Recurring or one-off check-in rule. No GSIs. No TTL.'
+}
+
+Table main.execution {
+  PK string [not null, note: 'SCHEDULE#${scheduleId}']
+  SK string [not null, note: 'EXEC#${classDate}']
+  GSI1PK string [not null, note: 'USER#${userId}']
+  GSI1SK string [not null, note: 'EXEC#${classDate}#${scheduleId}']
+  GSI2PK string [not null, note: 'EXECDATE#${classDate}']
+  GSI2SK string [not null, note: '${status}#${userId}']
+  scheduleId string [not null]
+  classDate string [not null, note: 'YYYY-MM-DD, America/Sao_Paulo']
+  userId string [not null]
+  className string [note: 'Copied from the schedule at claim time']
+  startTime string [note: 'Copied from the schedule at claim time']
+  status main.exec_status [not null]
+  checkInId string [note: 'Tecnofit check-in id']
+  attempts number [not null, note: 'POST check-in attempts']
+  latencyMs number [note: 'ms from the scheduled fire time to the successful POST']
+  error string [note: 'window_mismatch, timeout, class_not_found, full, unauthorized, invalid_response, unexpected']
+  ttl number [not null, note: 'Epoch seconds; claim time + 90 days']
+
+  indexes {
+    (PK, SK) [pk, name: 'table_key']
+    (GSI1PK, GSI1SK) [name: 'GSI1_byUser']
+    (GSI2PK, GSI2SK) [name: 'GSI2_byDate']
+  }
+
+  Note: 'One per schedule and class date. Created with attribute_not_exists, so a class runs once.'
+}
+
+Table main.invite {
+  PK string [not null, note: 'INVITE#${inviteId}']
+  SK string [not null, note: 'META']
+  GSI2PK string [not null, note: 'ENTITY#INVITE']
+  GSI2SK string [not null, note: '${createdAt}']
+  inviteId string [not null, unique, note: 'SHA-256 hex of the invite token']
+  label string
+  status main.invite_status [not null]
+  expiresAt number [not null, note: 'Epoch milliseconds; creation + 15 minutes']
+  attempts number [not null, note: 'Credential rejections during redeem']
+  createdBy string [not null, note: 'cli or the admin Cognito sub']
+  usedBy string [note: 'userId created by the redeem']
+  usedAt string [note: 'ISO 8601 UTC']
+  createdAt string [not null, note: 'ISO 8601 UTC']
+  ttl number [not null, note: 'Epoch seconds; expiresAt + 7 days']
+
+  indexes {
+    (PK, SK) [pk, name: 'table_key']
+    (GSI2PK, GSI2SK) [name: 'GSI2_byCreated']
+  }
+
+  Note: 'Single-use onboarding invite. The plaintext token is never stored.'
+}
+
+Table main.session {
+  PK string [not null, note: 'SESSION#${sessionId}']
+  SK string [not null, note: 'META']
+  GSI1PK string [not null, note: 'USER#${userId}']
+  GSI1SK string [not null, note: 'SESSION#${createdAt}']
+  sessionId string [not null, unique, note: 'SHA-256 hex of the sid cookie token']
+  userId string [not null]
+  createdAt string [not null, note: 'ISO 8601 UTC']
+  lastSeenAt string [not null, note: 'ISO 8601 UTC; refreshed at most once per 24 h']
+  ip string [not null]
+  userAgent string [not null]
+
+  indexes {
+    (PK, SK) [pk, name: 'table_key']
+    (GSI1PK, GSI1SK) [name: 'GSI1_byUser']
+  }
+
+  Note: 'User web session. No TTL.'
+}
+
+Table main.loginFail {
+  PK string [not null, note: 'LOGINFAIL#${email}']
+  SK string [not null, note: 'META']
+  email string [not null, note: 'Trimmed and lowercased; plaintext']
+  count number [not null, note: 'Failed logins; 5 locks the email']
+  ttl number [not null, note: 'Epoch seconds; first failure + 15 minutes']
+
+  indexes {
+    (PK, SK) [pk, name: 'table_key']
+  }
+
+  Note: 'Login rate-limit counter. No GSIs.'
+}
+
+Table audit.audit {
+  PK string [not null, note: 'DAY#${day}']
+  SK string [not null, note: '${at}#${eventId}']
+  GSI1PK string [not null, note: 'ACTOR#${actorId}']
+  GSI1SK string [not null, note: '${at}']
+  GSI2PK string [not null, note: 'TARGET#${targetId}; TARGET# when targetId is absent']
+  GSI2SK string [not null, note: '${at}']
+  day string [not null, note: 'YYYY-MM-DD of at, America/Sao_Paulo']
+  at string [not null, note: 'ISO 8601 UTC']
+  eventId string [not null, unique, note: 'UUID']
+  actorType audit.actor_type [not null]
+  actorId string [not null, note: 'userId, admin Cognito sub, anonymous, system or cli']
+  action string [not null, note: 'One of AUDIT_ACTIONS in packages/core/audit/audit.ts']
+  targetType string [note: 'invite, user or schedule']
+  targetId string
+  result audit.audit_result [not null]
+  ip string
+  userAgent string
+  metadata any [note: 'Optional keys: consentVersion, reason, label, filter']
+  ttl number [not null, note: 'Epoch seconds; write time + 365 days']
+
+  indexes {
+    (PK, SK) [pk, name: 'table_key']
+    (GSI1PK, GSI1SK) [name: 'GSI1_byActor']
+    (GSI2PK, GSI2SK) [name: 'GSI2_byTarget']
+  }
+
+  Note: 'Audit log in its own table. Application roles can only put items; api-admin can also query.'
+}
+
+TableGroup main_table {
+  main.profile
+  main.account
+  main.schedule
+  main.execution
+  main.invite
+  main.session
+  main.loginFail
+}
+
+TableGroup audit_table {
+  audit.audit
+}
+
+// Logical refs. DynamoDB does not enforce them.
+Ref account_user: main.account.userId > main.profile.userId
+Ref schedule_user: main.schedule.userId > main.profile.userId
+Ref execution_user: main.execution.userId > main.profile.userId
+Ref execution_schedule: main.execution.scheduleId > main.schedule.scheduleId
+Ref session_user: main.session.userId > main.profile.userId
+Ref invite_used_by: main.invite.usedBy > main.profile.userId
+// audit.targetId points at a different entity per targetType.
+Ref audit_target_invite: audit.audit.targetId > main.invite.inviteId
+Ref audit_target_user: audit.audit.targetId > main.profile.userId
+Ref audit_target_schedule: audit.audit.targetId > main.schedule.scheduleId
