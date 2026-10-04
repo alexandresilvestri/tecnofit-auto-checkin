@@ -103,7 +103,7 @@ The SPA is not stored as an artifact. Each release rebuilds it from the source a
 
 Promoting an older sha reverts code and versioned infrastructure only. Data does not revert.
 
-The KMS key policy has its own rollback caveat; see [infrastructure.md](infrastructure.md#kms-key).
+The KMS key policy has its own rollback caveat; see [infrastructure.md](infrastructure.md#kms-key). So does the prod custom domain; see [infrastructure.md](infrastructure.md#custom-domain).
 
 ## Secrets and variables
 

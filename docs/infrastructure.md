@@ -36,7 +36,7 @@ Always apply the bootstrap with `-var hcp_project=tecnofit-auto-checkin`. The de
 
 ### Environments
 
-`infra/envs/dev` and `infra/envs/prod` are identical except for the environment name. Their only variable is `artifact_version`, the git sha of the Lambda zips. CI sets it; see [ci-cd.md](ci-cd.md#release-steps).
+`infra/envs/dev` and `infra/envs/prod` are identical except for the environment name and the prod [custom domain](#custom-domain). Their only variable is `artifact_version`, the git sha of the Lambda zips. CI sets it; see [ci-cd.md](ci-cd.md#release-steps).
 
 Each env root sets `alarm_email` and `operator_arns` as literals in its `main.tf`.
 
@@ -66,14 +66,14 @@ flowchart LR
   data -->|"table names, audit_table_arn"| auth
   backend -->|"api_endpoint, origin_secret"| frontend
   backend -->|"api_id, api_execution_arn, api_admin_arn, api_admin_invoke_arn"| auth
-  frontend -->|"web_url"| auth
-  root -->|"auth_domain_prefix"| frontend
+  frontend -->|"web_urls"| auth
+  root -->|"auth_domain_prefix; domain, certificate_arn (prod)"| frontend
   root -->|"domain_prefix"| auth
 ```
 
 The admin routes, the JWT authorizer and Cognito live in `auth`, not in `backend`. The reason is a dependency cycle:
 
-- The Cognito app client needs the CloudFront URL for its callback and logout URLs.
+- The Cognito app client needs the CloudFront URLs for its callback and logout URLs.
 - `frontend` needs `backend` for the API origin and the origin secret.
 - Cognito in `backend` would make `backend` depend on `frontend`, which already depends on `backend`.
 
@@ -258,9 +258,21 @@ Terraform creates no schedules. The application creates one schedule per booking
 
 The response headers policy `checkin-<env>-web` sets the CSP. The CSP allows `connect-src` to the Cognito domain so the admin SPA can call the token endpoint.
 
+### Custom domain
+
+Prod serves `checkin.alexandresilvestri.com.br` as an alias, next to its default `*.cloudfront.net` domain. Dev has only the default domain.
+
+- The certificate is the ACM certificate `*.alexandresilvestri.com.br` in `us-east-1`. It is created and DNS-validated outside Terraform. The prod root reads it with `data "aws_acm_certificate"`, so no ARN is committed.
+- With a custom domain, the viewer certificate uses `sni-only` and minimum TLS `TLSv1.2_2021`. Dev keeps the default certificate, which cannot set a minimum TLS version, hence the `nosemgrep` on the distribution.
+- The `frontend` output `web_urls` lists the default domain and every alias. `auth` builds the Cognito callback and logout URLs from it, so the admin can log in on both domains. The `web_url` output stays the CloudFront domain, which the release smoke tests use.
+
+Change the alias only in Terraform. A console change is drift: the next apply reverts it, and Cognito answers `redirect_mismatch` for any domain missing from the callback URLs.
+
+Rollback caveat: promoting a sha older than this setup removes the alias and the certificate. The CloudFront domain keeps working.
+
 ## Cognito
 
-`module.auth` creates the admin user pool `checkin-<env>-admin`. Only the admin uses it; app users log in with their Tecnofit credentials. Only administrators create users, and MFA with TOTP is required. Settings are in `infra/modules/auth/main.tf`.
+`module.auth` creates the admin user pool `checkin-<env>-admin`. Only the admin uses it; app users log in with their Tecnofit credentials. Only administrators create users, and MFA with TOTP is required. The app client accepts `<url>/admin/callback` and `<url>/admin` for every URL in `web_urls`. Settings are in `infra/modules/auth/main.tf`.
 
 ## Alarms and SNS
 

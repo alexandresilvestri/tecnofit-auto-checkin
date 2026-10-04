@@ -11,7 +11,7 @@ The user connects their Tecnofit account, schedules a class (one-off or weekly) 
 | Environment | HCP workspace | URL |
 | --- | --- | --- |
 | dev | `checkin-dev` | https://d3d4q56x093hg3.cloudfront.net |
-| prod | `checkin-prod` | https://dquf6r20z50xs.cloudfront.net |
+| prod | `checkin-prod` | https://checkin.alexandresilvestri.com.br |
 
 Org `ATS_org`, project `tecnofit-auto-checkin`, region `us-east-1`. Bootstrap (OIDC roles): workspace `checkin-bootstrap`.
 

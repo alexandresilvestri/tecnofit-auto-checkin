@@ -103,11 +103,12 @@ resource "aws_cloudfront_response_headers_policy" "web" {
   }
 }
 
-# No custom domain yet; the default *.cloudfront.net certificate does not allow setting a minimum TLS version.
+# Without a custom domain (dev), the default *.cloudfront.net certificate does not allow setting a minimum TLS version.
 # nosemgrep: terraform.aws.security.aws-cloudfront-insecure-tls.aws-insecure-cloudfront-distribution-tls-version
 resource "aws_cloudfront_distribution" "web" {
   enabled             = true
   comment             = "checkin-${var.env}"
+  aliases             = var.domain == null ? [] : [var.domain]
   default_root_object = "index.html"
   price_class         = "PriceClass_All"
   http_version        = "http2and3"
@@ -167,6 +168,9 @@ resource "aws_cloudfront_distribution" "web" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    cloudfront_default_certificate = var.domain == null
+    acm_certificate_arn            = var.certificate_arn
+    ssl_support_method             = var.domain == null ? null : "sni-only"
+    minimum_protocol_version       = var.domain == null ? null : "TLSv1.2_2021"
   }
 }
