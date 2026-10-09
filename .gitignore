@@ -5,3 +5,4 @@ dist/
 infra/envs/*/artifact.auto.tfvars
 test-results/
 playwright-report/
+.env

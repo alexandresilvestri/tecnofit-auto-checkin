@@ -19,7 +19,11 @@ services:
     command: npx tsx watch scripts/local-api.ts
     ports:
       - "3000:3000"
+    env_file:
+      - path: .env
+        required: false
     environment:
+      CHECKIN_ENV: local
       AWS_ENDPOINT_URL: http://moto:5000
       AWS_REGION: us-east-1
       AWS_ACCESS_KEY_ID: test

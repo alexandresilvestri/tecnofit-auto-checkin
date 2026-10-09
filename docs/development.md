@@ -45,6 +45,15 @@ Open http://localhost:5173. The API listens on http://localhost:3000.
 
 A typical first run: open http://localhost:5173/admin, create an invite, open the link, and onboard with a real Tecnofit account.
 
+To skip the invite, seed a user. Put real Tecnofit credentials in a root `.env` (gitignored):
+
+```bash
+TECNOFIT_EMAIL=you@example.com
+TECNOFIT_PASSWORD=your-tecnofit-password
+```
+
+Then run `make up && make seed` and log in at http://localhost:5173/login. Compose loads `.env` into `api` with `CHECKIN_ENV=local`, and `make seed` runs [`connect`](#connect) there. Run `make up` again after editing `.env`, and `make seed` again after `moto` restarts. The `Makefile` lists the other common commands.
+
 Limits of the local stack:
 
 - **Tecnofit is real.** Onboarding, login, class lists and schedule creation call `rest.tecnofit.com.br`.
