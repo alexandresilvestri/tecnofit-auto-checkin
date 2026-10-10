@@ -57,6 +57,20 @@
   --color-danger: #ff6465eb;
 
   --container-text: 480px;
+
+  --animate-trace: trace 1.6s ease-in-out infinite;
+
+  @keyframes trace {
+    from {
+      stroke-dashoffset: 1;
+    }
+    50% {
+      stroke-dashoffset: 0;
+    }
+    to {
+      stroke-dashoffset: -1;
+    }
+  }
 }
 
 @layer base {

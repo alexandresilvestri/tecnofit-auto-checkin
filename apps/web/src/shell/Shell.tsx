@@ -1,9 +1,11 @@
-import { CalendarCheck, History, KeyRound, ListChecks, Plus, ScrollText, User, Users } from "lucide-react";
-import type { ReactNode } from "react";
-import { Tabs, type Tab } from "../ui/Tabs";
+import { CalendarCheck, History, KeyRound, ListChecks, Menu as MenuIcon, Plus, ScrollText, User, Users } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Button, LinkButton } from "../ui/Button";
+import { Dialog } from "../ui/Dialog";
+import { Tabs, activeTab, type Tab } from "../ui/Tabs";
 import { ThemeToggle } from "../ui/ThemeToggle";
 
-function Brand({ title = "Auto check-in by GasparzZ :)", subtitle }: { title?: string; subtitle?: string }) {
+function Brand({ title = "Auto check-in by Alexandre", subtitle }: { title?: string; subtitle?: string }) {
   return (
     <a href="/app" className="flex items-center gap-3">
       <img src="/favicon.png" alt="" className="size-8" />
@@ -15,18 +17,52 @@ function Brand({ title = "Auto check-in by GasparzZ :)", subtitle }: { title?: s
   );
 }
 
-function Header({ tabs, right, brand = <Brand /> }: { tabs: Tab[]; right?: ReactNode; brand?: ReactNode }) {
+function Header({ brand = <Brand />, children }: { brand?: ReactNode; children: ReactNode }) {
   return (
     <header className="sticky top-0 z-10 border-b border-line bg-canvas/60 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3 sm:flex-nowrap">
         {brand}
-        <span className="ml-auto flex items-center gap-1 sm:order-last">
-          <ThemeToggle />
-          {right}
-        </span>
-        <Tabs items={tabs} />
+        {children}
       </div>
     </header>
+  );
+}
+
+function Menu({ items }: { items: Tab[] }) {
+  const [open, setOpen] = useState(false);
+  const active = activeTab(items);
+  return (
+    <>
+      <Button variant="ghost" className="ml-auto px-2" aria-label="Menu" onClick={() => setOpen(true)}>
+        <MenuIcon className="size-4" />
+      </Button>
+      <Dialog
+        open={open}
+        title="Menu"
+        onClose={() => setOpen(false)}
+        dismissable
+        className="ml-auto h-dvh max-h-none w-72 max-w-[calc(100%-3rem)] flex-col rounded-l-4xl transition-transform duration-200 ease-out open:flex starting:translate-x-full motion-reduce:transition-none"
+      >
+        <nav className="flex flex-col gap-1">
+          {items.map((t) => (
+            <LinkButton
+              key={t.href}
+              href={t.href}
+              variant="ghost"
+              size="lg"
+              aria-current={t === active ? "page" : undefined}
+              className={`justify-start gap-3 font-semibold ${t === active ? "bg-interactive text-fg-emphasis" : ""}`}
+            >
+              <t.icon className="size-4" />
+              {t.label}
+            </LinkButton>
+          ))}
+        </nav>
+        <div className="mt-auto border-t border-line pt-4">
+          <ThemeToggle label />
+        </div>
+      </Dialog>
+    </>
   );
 }
 
@@ -47,10 +83,9 @@ const ADMIN: Tab[] = [
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
-      <Header
-        tabs={APP}
-        brand={<Brand title="Agende seu check-in" subtitle="Selecione data e hora, confirme o agendamento e pronto: seu check-in está garantido." />}
-      />
+      <Header brand={<Brand title="Agende seu check-in" subtitle="Selecione data e hora, confirme o agendamento e pronto: seu check-in está garantido." />}>
+        <Menu items={APP} />
+      </Header>
       <main className="mx-auto w-full max-w-text flex-1 px-6 py-6">{children}</main>
       <footer className="mx-auto w-full max-w-text px-6 py-8 text-xs text-fg-muted">Desenvolvido por Alexandre Silvestri</footer>
     </div>
@@ -60,20 +95,29 @@ export function AppShell({ children }: { children: ReactNode }) {
 export function AdminShell({ right, children }: { right?: ReactNode; children: ReactNode }) {
   return (
     <>
-      <Header tabs={ADMIN} right={right} />
+      <Header>
+        <span className="ml-auto flex items-center gap-1 sm:order-last">
+          <ThemeToggle />
+          {right}
+        </span>
+        <Tabs items={ADMIN} />
+      </Header>
       <main className="mx-auto max-w-6xl px-6 py-6">{children}</main>
     </>
   );
 }
 
-export function AuthShell({ children }: { children: ReactNode }) {
+export function AuthShell({ title, children }: { title?: string; children: ReactNode }) {
   return (
-    <main className="mx-auto flex max-w-[400px] flex-col gap-8 px-6 pt-16 pb-12">
-      <div className="flex items-center justify-between">
-        <Brand />
-        <ThemeToggle />
-      </div>
-      {children}
-    </main>
+    <div className="flex min-h-dvh flex-col">
+      <main className="mx-auto flex w-full max-w-[400px] flex-1 flex-col gap-8 px-6 pt-16 pb-12">
+        <div className="flex items-center gap-3">
+          <img src="/favicon.png" alt="" className="size-8" />
+          {title && <h1 className="font-display text-[28px]/[34px] font-medium text-fg-emphasis">{title}</h1>}
+        </div>
+        {children}
+      </main>
+      <footer className="mx-auto w-full max-w-[400px] px-6 py-8 text-xs text-fg-muted">Desenvolvido por Alexandre Silvestri</footer>
+    </div>
   );
 }
