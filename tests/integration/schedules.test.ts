@@ -107,7 +107,6 @@ const deps = (scheduler: SchedulerClient): ScheduleDeps => ({
 const weekly = (userId: string): AddScheduleInput => ({
   userId,
   className: "TREINO NO RANCHO",
-  allowWaitingList: true,
   refDate: "2026-10-21",
   kind: "weekly",
   startTime: "07:00",
@@ -117,7 +116,6 @@ const weekly = (userId: string): AddScheduleInput => ({
 const once = (userId: string): AddScheduleInput => ({
   userId,
   className: "TREINO NO RANCHO",
-  allowWaitingList: false,
   refDate: "2026-10-21",
   kind: "once",
   startTime: "07:00",
@@ -159,7 +157,6 @@ describe("CreateSchedule input", () => {
       startTime: "07:00",
       className: "TREINO NO RANCHO",
       empresaId: "161322",
-      allowWaitingList: true,
       active: true,
     });
   });
@@ -176,7 +173,6 @@ describe("CreateSchedule input", () => {
     expect((await e.schedule.get({ userId, scheduleId }).go()).data).toMatchObject({
       kind: "once",
       date: "2026-10-21",
-      allowWaitingList: false,
     });
   });
 
@@ -211,7 +207,6 @@ describe("with Moto Scheduler", () => {
   const monday = (userId: string): AddScheduleInput => ({
     userId,
       className: "TREINO NO RANCHO",
-    allowWaitingList: true,
     refDate: "2026-10-19",
     kind: "weekly",
     startTime: "17:15",
@@ -250,7 +245,6 @@ describe("with Moto Scheduler", () => {
         startTime: "17:15",
         kind: "weekly",
         weekdays: [1],
-        allowWaitingList: true,
         active: true,
       })
       .go();
@@ -286,7 +280,6 @@ describe("updateSchedule", () => {
   const monday = (userId: string): AddScheduleInput => ({
     userId,
     className: "TREINO NO RANCHO",
-    allowWaitingList: true,
     refDate: "2026-10-19",
     kind: "weekly",
     startTime: "17:15",
@@ -310,23 +303,6 @@ describe("updateSchedule", () => {
     expect(await activeOf(userId, scheduleId)).toBe(true);
   });
 
-  it("changes allowWaitingList without calling Scheduler", async () => {
-    const userId = await seedUser();
-    eventsReply = mondayEvents;
-    const d = deps(realScheduler);
-    const scheduleId = await addSchedule(d, monday(userId));
-    const mock = mockClient(SchedulerClient);
-    try {
-      await updateSchedule({ ...d, scheduler: mock as unknown as SchedulerClient }, userId, scheduleId, {
-        allowWaitingList: false,
-      });
-      expect(mock.calls()).toHaveLength(0);
-    } finally {
-      mock.restore();
-    }
-    expect((await e.schedule.get({ userId, scheduleId }).go()).data?.allowWaitingList).toBe(false);
-  });
-
   it("throws ScheduleNotFound for another user's schedule", async () => {
     const a = await seedUser();
     const b = await seedUser();
@@ -343,11 +319,10 @@ describe("updateSchedule", () => {
     const scheduleId = await addSchedule(d, once(userId));
     await realScheduler.send(new DeleteScheduleCommand({ Name: scheduleId, GroupName: GROUP }));
     await expect(
-      updateSchedule(d, userId, scheduleId, { active: false, allowWaitingList: true }),
+      updateSchedule(d, userId, scheduleId, { active: false }),
     ).rejects.toBeInstanceOf(ScheduleFinished);
     expect((await e.schedule.get({ userId, scheduleId }).go()).data).toMatchObject({
       active: true,
-      allowWaitingList: false,
     });
   });
 
@@ -358,11 +333,10 @@ describe("updateSchedule", () => {
     await updateSchedule(d, userId, scheduleId, { active: false });
     const late = { ...d, now: () => Date.parse("2026-10-21T12:00:00Z") };
     await expect(
-      updateSchedule(late, userId, scheduleId, { active: true, allowWaitingList: true }),
+      updateSchedule(late, userId, scheduleId, { active: true }),
     ).rejects.toBeInstanceOf(ScheduleFinished);
     expect((await e.schedule.get({ userId, scheduleId }).go()).data).toMatchObject({
       active: false,
-      allowWaitingList: false,
     });
   });
 

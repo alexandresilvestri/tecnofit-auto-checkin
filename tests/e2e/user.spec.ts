@@ -29,10 +29,10 @@ async function mockApi(page: Page) {
           startTime: body.startTime,
           kind: body.kind,
           weekdays: body.weekdays,
-          allowWaitingList: body.allowWaitingList,
+          date: body.date,
           active: true,
           finished: false,
-          nextClass: "2026-11-02T07:00:00",
+          nextClass: "2026-11-02 07:00",
           last: null,
         },
       ];
@@ -80,14 +80,22 @@ test("convite, cadastro e agendamento semanal", async ({ page }) => {
   await page.getByRole("button", { name: "Menu" }).click();
   await expect(page.getByRole("link", { name: "Agendamentos" })).toHaveAttribute("aria-current", "page");
   await page.getByRole("link", { name: "Novo" }).click();
-  await page.getByRole("button", { name: "Buscar aulas" }).click();
-  await page.getByLabel(/07:00 — CrossFit/).check();
   await page.getByLabel("Toda semana").check();
-  await page.getByRole("button", { name: "Salvar" }).click();
+  await page.getByLabel("Seg").check();
+  await page.getByRole("button", { name: "Buscar aulas" }).click();
+  await expect(page.getByRole("group", { name: "Aulas em seg" })).toBeVisible();
+  await page.getByLabel(/07:00 — CrossFit/).check();
+  await expect(page.getByText(/^Próximo check-in: dom \d{2}\/\d{2} às 19:01$/)).toBeVisible();
+  const created = page.waitForRequest((r) => r.url().endsWith("/api/schedules") && r.method() === "POST");
+  await page.getByRole("button", { name: "Agendar toda semana" }).click();
+  expect((await created).postDataJSON()).toMatchObject({ className: "CrossFit", startTime: "07:00", kind: "weekly", weekdays: [1] });
 
   await expect(page).toHaveURL(/\/app$/);
   const card = page.getByRole("article");
   await expect(card.getByRole("heading", { name: "07:00 — CrossFit" })).toBeVisible();
+  await expect(card).toContainText("Toda semana");
+  await expect(card).toContainText("seg");
+  await expect(card).toContainText("dom 01/11 às 19:01");
   await expect(card).toContainText("Ativo");
 
   await card.getByRole("button", { name: "Pausar" }).click();
@@ -98,6 +106,31 @@ test("convite, cadastro e agendamento semanal", async ({ page }) => {
   await card.getByRole("button", { name: "Excluir" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Excluir" }).click();
   await expect(page.getByText("Nenhum agendamento.")).toBeVisible();
+});
+
+test("agendamento de uma vez com resumo", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/app/novo");
+  await expect(page.getByLabel("Uma vez")).toBeChecked();
+
+  await page.getByLabel("Data").fill("2020-01-06");
+  await page.getByRole("button", { name: "Buscar aulas" }).click();
+  await page.getByLabel(/07:00 — CrossFit/).check();
+  await expect(page.getByText("O check-in desta aula já foi liberado. Faça pelo app da Tecnofit.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Agendar uma vez" })).toBeDisabled();
+
+  await page.getByLabel("Data").fill("2099-01-05");
+  await page.getByRole("button", { name: "Buscar aulas" }).click();
+  await page.getByLabel(/07:00 — CrossFit/).check();
+  await expect(page.getByText("CrossFit, seg 05/01, 07:00")).toBeVisible();
+  await expect(page.getByText("Check-in: dom 04/01 às 19:01")).toBeVisible();
+  const created = page.waitForRequest((r) => r.url().endsWith("/api/schedules") && r.method() === "POST");
+  await page.getByRole("button", { name: "Agendar uma vez" }).click();
+  expect((await created).postDataJSON()).toEqual({ className: "CrossFit", startTime: "07:00", date: "2099-01-05", kind: "once" });
+
+  await expect(page).toHaveURL(/\/app$/);
+  await expect(page.getByRole("article")).toContainText("Uma vez");
+  await expect(page.getByRole("article")).toContainText("05/01/2099");
 });
 
 test("tema pelo menu e espera ao buscar aulas", async ({ page }) => {

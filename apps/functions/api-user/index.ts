@@ -59,7 +59,7 @@ const deps = {
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const startTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-const common = { className: z.string().min(1).max(100), startTime, date, allowWaitingList: z.boolean() };
+const common = { className: z.string().min(1).max(100), startTime, date };
 const createSchema = z.discriminatedUnion("kind", [
   z.object({
     ...common,
@@ -68,9 +68,7 @@ const createSchema = z.discriminatedUnion("kind", [
   }),
   z.object({ ...common, kind: z.literal("once") }),
 ]);
-const patchSchema = z
-  .object({ active: z.boolean().optional(), allowWaitingList: z.boolean().optional() })
-  .refine((body) => Object.keys(body).length > 0);
+const patchSchema = z.object({ active: z.boolean() });
 const classesQuery = z.object({ date });
 const executionsQuery = z.object({ cursor: z.string().min(1).max(2048).optional() });
 const scheduleId = z.string().min(1).max(64);
@@ -191,7 +189,6 @@ app.get("/api/schedules", async (c) => {
         kind: item.kind,
         weekdays: item.weekdays,
         date: item.date,
-        allowWaitingList: item.allowWaitingList,
         active: item.active,
         finished: item.kind === "once" && next === null,
         nextClass: item.active ? next : null,
@@ -212,7 +209,6 @@ app.post("/api/schedules", async (c) => {
   const base = {
     userId: session(c).userId,
     className: input.className,
-    allowWaitingList: input.allowWaitingList,
     startTime: input.startTime,
     refDate: input.date,
   };

@@ -207,14 +207,13 @@ app.get("/api/admin/users/:id", async (c) => {
     profile: userView(profile),
     account: account ? { boxName: account.boxName, status: account.status } : null,
     schedules: schedules.map(
-      ({ scheduleId, className, startTime, kind, weekdays, date, allowWaitingList, active, pausedBySuspension }) => ({
+      ({ scheduleId, className, startTime, kind, weekdays, date, active, pausedBySuspension }) => ({
         scheduleId,
         className,
         startTime,
         kind,
         weekdays,
         date,
-        allowWaitingList,
         active,
         pausedBySuspension,
       }),

@@ -72,7 +72,7 @@ const seed = async (userId: string) => {
       status: "ok",
     })
     .go();
-  const base = { userId, empresaId: "161322", className: "WOD", startTime: "17:15", allowWaitingList: true };
+  const base = { userId, empresaId: "161322", className: "WOD", startTime: "17:15" };
   const rows = [
     { ...base, scheduleId: `${userId}_on`, kind: "weekly" as const, weekdays: [1], active: true },
     { ...base, scheduleId: `${userId}_off`, kind: "weekly" as const, weekdays: [2], active: false },
