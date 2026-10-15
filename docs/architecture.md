@@ -64,7 +64,7 @@ flowchart LR
   cognito --> postauth
   user -->|"create, update, delete"| sched
   admin -->|"update, delete"| sched
-  sched -->|"class minus 11h59"| worker
+  sched -->|"class minus 12h"| worker
   api --> ddb
   pub & user --> kms
   pub & user --> tecnofit
@@ -168,14 +168,14 @@ sequenceDiagram
   Note over U,S: if CreateSchedule fails, the row is deleted
   U->>D: audit schedule.created
   U-->>B: 201 with scheduleId
-  S->>W: invoke at class minus 11h59 with userId, scheduleId, scheduledTime
+  S->>W: invoke at class minus 12h with userId, scheduleId, scheduledTime
   W->>D: read schedule, profile, account
   W->>D: conditional create of the execution row as running
   W->>K: decrypt token
-  W->>T: list events, retry until the deadline
-  loop until success or the 90 s deadline
+  W->>T: list events, retry every 30 s
+  loop until success or 4 retries, 30 s apart
     W->>T: POST check-in
-    W->>T: GET event detail, at most every 2 s
+    W->>T: GET event detail after a failed POST
   end
   W->>D: write outcome to the execution row
 ```
@@ -184,14 +184,15 @@ The worker's step-by-step algorithm is in [tecnofit-integration.md](tecnofit-int
 
 Timing rules:
 
-- Tecnofit opens check-in 12 h before any class. The job fires at class − 11h59 (`FIRE_BEFORE_CLASS_MIN = 719` in `packages/core/domain/time.ts`).
+- Tecnofit opens check-in 12 h before any class. The job fires at class − 12h, the minute check-in opens (`FIRE_BEFORE_CLASS_MIN = 720` in `packages/core/domain/time.ts`).
 - Expressions use time zone `America/Sao_Paulo` and `FlexibleTimeWindow` `OFF`.
 - Weekly bookings use `cron(m h ? * DAYS *)`. One-off bookings use `at(YYYY-MM-DDTHH:mm:00)` with `ActionAfterCompletion: DELETE`.
-- A class before 11:59 fires on the previous day, so cron weekdays shift back by one. A Monday 07:00 class fires Sunday 19:01.
-- A one-off booking is refused unless the class starts more than 11 h 59 min from now (`TooLate`).
-- The worker derives the class slot from `scheduledTime` plus 719 minutes (`classSlotFor`).
+- A class before 12:00 fires on the previous day, so cron weekdays shift back by one. A Monday 07:00 class fires Sunday 19:00.
+- A one-off booking is refused unless the class starts more than 12 h from now (`TooLate`).
+- The worker derives the class slot from `scheduledTime` plus 720 minutes (`classSlotFor`).
 - Scheduler retries are 0 and the maximum event age is 60 s. The worker's async invoke config uses the same values.
-- The worker stops at 90 s. Its Lambda timeout is 120 s. Each Tecnofit request times out after 5 s.
+- Scheduler starts the worker a few seconds after the minute (about 9.5 s measured in prod).
+- After a failed try, the worker waits for the next 30 s mark from the start of the run. It stops after 4 retries (about 2 min). Its Lambda timeout is 180 s. Each Tecnofit request times out after 5 s.
 
 ## User lifecycle
 

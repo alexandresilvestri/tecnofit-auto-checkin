@@ -219,7 +219,7 @@ resource "aws_lambda_function" "worker" {
   role          = aws_iam_role.worker.arn
   runtime       = "nodejs24.x"
   handler       = "index.handler"
-  timeout       = 120
+  timeout       = 180
   memory_size   = 256
   s3_bucket     = var.artifacts_bucket
   s3_key        = "${var.artifact_version}/checkin-worker.zip"

@@ -163,7 +163,7 @@ Status values:
 | `window_mismatch` | The fire time does not match the schedule's start time, date or weekdays |
 | `class_not_found` | No event with that name and start on the agenda |
 | `full` | The class is full |
-| `timeout` | No result before the worker's deadline |
+| `timeout` | No result after the worker's last retry |
 | `unauthorized` | Tecnofit rejected the token. The account becomes `reconnect` |
 | `invalid_response` | Tecnofit returned a body that failed validation |
 | `unexpected` | Any other error. The worker records it and rethrows |

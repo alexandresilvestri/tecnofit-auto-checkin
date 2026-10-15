@@ -24,7 +24,6 @@ const deps = {
   kms,
   now: Date.now,
   sleep: (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
-  random: Math.random,
 };
 
 export const handler = async (event: z.infer<typeof eventSchema>) => {

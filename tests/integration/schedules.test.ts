@@ -140,7 +140,7 @@ describe("CreateSchedule input", () => {
     expect(calls[0].args[0].input).toEqual({
       Name: scheduleId,
       GroupName: GROUP,
-      ScheduleExpression: "cron(1 19 ? * TUE *)",
+      ScheduleExpression: "cron(0 19 ? * TUE *)",
       ScheduleExpressionTimezone: "America/Sao_Paulo",
       FlexibleTimeWindow: { Mode: "OFF" },
       Target: {
@@ -167,7 +167,7 @@ describe("CreateSchedule input", () => {
     const input = schedulerMock.commandCalls(CreateScheduleCommand)[0].args[0].input;
     expect(input).toMatchObject({
       Name: scheduleId,
-      ScheduleExpression: "at(2026-10-20T19:01:00)",
+      ScheduleExpression: "at(2026-10-20T19:00:00)",
       ActionAfterCompletion: "DELETE",
     });
     expect((await e.schedule.get({ userId, scheduleId }).go()).data).toMatchObject({
@@ -219,7 +219,7 @@ describe("with Moto Scheduler", () => {
     const d = deps(realScheduler);
     const scheduleId = await addSchedule(d, monday(userId));
     const got = await realScheduler.send(new GetScheduleCommand({ Name: scheduleId, GroupName: GROUP }));
-    expect(got.ScheduleExpression).toBe("cron(16 5 ? * MON *)");
+    expect(got.ScheduleExpression).toBe("cron(15 5 ? * MON *)");
     expect(got.ScheduleExpressionTimezone).toBe("America/Sao_Paulo");
     expect((await listSchedules(e, userId)).map((s) => s.scheduleId)).toEqual([scheduleId]);
 

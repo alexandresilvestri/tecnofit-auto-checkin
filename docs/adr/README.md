@@ -23,6 +23,7 @@ Each record states one decision: its context, what was decided and what follows 
 | [0017](0017-lgpd-consent-versioning.md) | LGPD consent with a versioned text | 2026-10-21 |
 | [0018](0018-dependency-update-policy.md) | Dependency update policy | 2026-10-21 |
 | [0019](0019-remove-waiting-list.md) | Waiting list removed, schedule edits limited to pause | 2026-10-22 |
+| [0020](0020-checkin-fires-at-opening-with-30s-retries.md) | Check-in fires at the opening and retries every 30 s | 2026-10-22 |
 
 ## Adding a record
 
