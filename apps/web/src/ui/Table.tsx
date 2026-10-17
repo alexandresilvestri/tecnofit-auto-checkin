@@ -16,7 +16,7 @@ export function Table({ head, children }: { head: string[]; children: ReactNode 
             ))}
           </tr>
         </thead>
-        <tbody className="[&_td]:border-b [&_td]:border-line-subtle [&_td]:p-3 [&_td]:align-middle [&_td]:whitespace-nowrap [&_td]:tabular-nums">{children}</tbody>
+        <tbody className="[&_td]:border-b [&_td]:border-line-subtle [&_td]:p-3 [&_td]:align-middle [&_td]:whitespace-nowrap">{children}</tbody>
       </table>
     </div>
   );

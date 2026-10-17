@@ -155,7 +155,7 @@ export function NewSchedule() {
         </fieldset>
       ) : (
         <div className="flex items-end gap-2">
-          <Field label="Data" htmlFor="date" className="flex-1">
+          <Field label="Data" htmlFor="date" className="min-w-0 flex-1">
             <Input
               id="date"
               type="date"
@@ -182,7 +182,7 @@ export function NewSchedule() {
           {classes.map((c) => (
             <label
               key={`${c.time}-${c.name}`}
-              className="flex h-10 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm/5 text-fg-emphasis hover:bg-interactive"
+              className="flex min-h-10 cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-sm/5 text-fg-emphasis hover:bg-interactive"
               htmlFor={`c-${c.time}-${c.name}`}
             >
               <input id={`c-${c.time}-${c.name}`} type="radio" name="class" checked={selected === c} onChange={() => setSelected(c)} />

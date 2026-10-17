@@ -133,8 +133,8 @@ export function Invites() {
             <tr key={i.inviteId}>
               <td className="text-fg-emphasis">{i.label ?? "—"}</td>
               <td><Badge tone={TONE[i.status] ?? "neutral"}>{STATUS[i.status] ?? i.status}</Badge></td>
-              <td>{stamp(i.createdAt)}</td>
-              <td>{stamp(i.expiresAt)}</td>
+              <td className="tabular-nums">{stamp(i.createdAt)}</td>
+              <td className="tabular-nums">{stamp(i.expiresAt)}</td>
               <td>{i.usedBy ? <a href={`/admin/usuarios/${i.usedBy}`}>{i.usedBy}</a> : "—"}</td>
               <td className="text-right">
                 {i.status === "pending" && (

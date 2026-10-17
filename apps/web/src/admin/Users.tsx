@@ -61,7 +61,7 @@ export function Users() {
               <td className="text-fg-emphasis"><a href={`/admin/usuarios/${u.userId}`}>{u.name}</a></td>
               <td>{u.email}</td>
               <td><Badge tone={u.status === "active" ? "success" : "neutral"}>{USER_STATUS[u.status] ?? u.status}</Badge></td>
-              <td>{new Date(u.createdAt).toLocaleDateString("pt-BR")}</td>
+              <td className="tabular-nums">{new Date(u.createdAt).toLocaleDateString("pt-BR")}</td>
             </tr>
           ))}
         </Table>

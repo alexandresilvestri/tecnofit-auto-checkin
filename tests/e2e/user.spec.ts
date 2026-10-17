@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+test.use({ viewport: { width: 390, height: 844 } });
+
 type Sched = Record<string, unknown> & { scheduleId: string; active: boolean };
 
 const json = (route: Route, body: unknown, status = 200) =>

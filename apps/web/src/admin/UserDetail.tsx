@@ -158,7 +158,7 @@ export function UserDetail({ id }: { id: string }) {
           <Table head={["Data", "Aula", "Status", "Erro"]}>
             {data.executions.map((x) => (
               <tr key={`${x.scheduleId}-${x.classDate}`}>
-                <td>{fullDate(x.classDate)} {x.startTime}</td>
+                <td className="tabular-nums">{fullDate(x.classDate)} {x.startTime}</td>
                 <td className="text-fg-emphasis">{x.className}</td>
                 <td><Badge tone={STATUS_TONE[x.status] ?? "neutral"}>{STATUS_LABEL[x.status] ?? x.status}</Badge></td>
                 <td>{x.error ?? "—"}</td>
@@ -174,8 +174,8 @@ export function UserDetail({ id }: { id: string }) {
           <Table head={["Criada", "Vista", "IP"]}>
             {data.sessions.map((s) => (
               <tr key={s.createdAt}>
-                <td>{stamp(s.createdAt)}</td>
-                <td>{stamp(s.lastSeenAt)}</td>
+                <td className="tabular-nums">{stamp(s.createdAt)}</td>
+                <td className="tabular-nums">{stamp(s.lastSeenAt)}</td>
                 <td className="font-mono text-fg-emphasis">{s.ip ?? "—"}</td>
               </tr>
             ))}
@@ -189,7 +189,7 @@ export function UserDetail({ id }: { id: string }) {
           <Table head={["Quando", "Ação", "Ator", "Resultado", "Detalhes"]}>
             {data.audit.map((a) => (
               <tr key={`${a.at}-${a.action}`}>
-                <td>{stamp(a.at)}</td>
+                <td className="tabular-nums">{stamp(a.at)}</td>
                 <td className="font-mono text-fg-emphasis">{a.action}</td>
                 <td>{a.actorType}</td>
                 <td>{a.result}</td>

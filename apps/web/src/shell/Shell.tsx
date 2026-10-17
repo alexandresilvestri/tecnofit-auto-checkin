@@ -5,14 +5,11 @@ import { Dialog } from "../ui/Dialog";
 import { Tabs, activeTab, type Tab } from "../ui/Tabs";
 import { ThemeToggle } from "../ui/ThemeToggle";
 
-function Brand({ title = "Auto check-in by Alexandre", subtitle }: { title?: string; subtitle?: string }) {
+function Brand() {
   return (
     <a href="/app" className="flex items-center gap-3">
       <img src="/favicon.png" alt="" className="size-8" />
-      <span className="flex flex-col">
-        <span className="font-display text-base/5 font-medium text-fg-emphasis">{title}</span>
-        {subtitle && <span className="hidden text-xs/4 text-fg-muted xl:block">{subtitle}</span>}
-      </span>
+      <span className="font-display text-base/5 font-medium text-fg-emphasis max-sm:sr-only">Auto check-in by Alexandre</span>
     </a>
   );
 }
@@ -33,7 +30,7 @@ function Menu({ items }: { items: Tab[] }) {
   const active = activeTab(items);
   return (
     <>
-      <Button variant="ghost" className="ml-auto px-2" aria-label="Menu" onClick={() => setOpen(true)}>
+      <Button variant="ghost" className="ml-auto px-2 lg:hidden" aria-label="Menu" onClick={() => setOpen(true)}>
         <MenuIcon className="size-4" />
       </Button>
       <Dialog
@@ -83,7 +80,11 @@ const ADMIN: Tab[] = [
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
-      <Header brand={<Brand title="Agende seu check-in" subtitle="Selecione data e hora, confirme o agendamento e pronto: seu check-in está garantido." />}>
+      <Header brand={<a href="/app"><img src="/favicon.png" alt="Início" className="size-8" /></a>}>
+        <span className="ml-auto hidden items-center gap-1 lg:flex">
+          <Tabs items={APP} />
+          <ThemeToggle />
+        </span>
         <Menu items={APP} />
       </Header>
       <main className="mx-auto w-full max-w-text flex-1 px-6 py-6">{children}</main>
