@@ -15,6 +15,7 @@ import {
   ScheduleNotFound,
   TooLate,
   addSchedule,
+  dropSchedule,
   listClasses,
   listExecutions,
   listSchedules,
@@ -174,14 +175,20 @@ app.get("/api/classes", async (c) => {
 });
 
 app.get("/api/schedules", async (c) => {
-  const schedules = await listSchedules(entities, session(c).userId);
+  const { userId } = session(c);
+  const schedules = await listSchedules(entities, userId);
   const now = Date.now();
-  const cards = await Promise.all(
+  const cards = (await Promise.all(
     schedules.map(async (item) => {
       const [last] = (
         await entities.execution.query.bySchedule({ scheduleId: item.scheduleId }).go({ order: "desc", limit: 1 })
       ).data;
       const next = nextClass(specOf(item), now);
+      const finished = item.kind === "once" && next === null;
+      if (finished && (!item.active || (last && last.status !== "running"))) {
+        await dropSchedule(deps, userId, item.scheduleId);
+        return null;
+      }
       return {
         scheduleId: item.scheduleId,
         className: item.className,
@@ -190,12 +197,12 @@ app.get("/api/schedules", async (c) => {
         weekdays: item.weekdays,
         date: item.date,
         active: item.active,
-        finished: item.kind === "once" && next === null,
+        finished,
         nextClass: item.active ? next : null,
         last: last ? { classDate: last.classDate, status: last.status } : null,
       };
     }),
-  );
+  )).filter((card) => card !== null);
   const order = (card: (typeof cards)[number]) =>
     card.kind === "weekly"
       ? `0 ${Math.min(...(card.weekdays ?? []))} ${card.startTime}`

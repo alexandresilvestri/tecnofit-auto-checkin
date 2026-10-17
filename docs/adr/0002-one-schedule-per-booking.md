@@ -19,5 +19,5 @@ Each booking must fire at an exact minute ([0020](0020-checkin-fires-at-opening-
 
 - A failed check-in is not retried. It is recorded on the execution item and raises the `checkin-failed` alarm.
 - If the worker is killed after the claim (timeout or crash), the execution stays `running`. Nothing sweeps it.
-- A one-off schedule deletes itself after firing; its item stays and shows as finished.
+- A one-off schedule deletes itself after firing. `GET /api/schedules` deletes its item once the run ends, or right away if it was paused. Until then, the item shows as finished.
 - Schedules are not in Terraform state. A restore or migration must recreate them from the items ([runbook](../runbook.md)).

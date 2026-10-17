@@ -12,6 +12,7 @@ const sched = vi.hoisted(() => ({
   listClasses: vi.fn(),
   updateSchedule: vi.fn(),
   removeSchedule: vi.fn(),
+  dropSchedule: vi.fn(),
   listSchedules: vi.fn(),
   listExecutions: vi.fn(),
 }));
@@ -254,6 +255,31 @@ it("schedules marks fired once schedules as finished and sorts weekly first", as
   expect(cards.map((x: { scheduleId: string }) => x.scheduleId)).toEqual(["w0", "w1", "w2", "o1", "o2"]);
   expect(cards.map((x: { finished: boolean }) => x.finished)).toEqual([false, false, false, true, false]);
   expect(cards[3].nextClass).toBeNull();
+  expect(sched.dropSchedule).not.toHaveBeenCalled();
+});
+
+it("schedules drops finished once schedules whose run ended or that were paused", async () => {
+  const base = { userId: "u1", empresaId: "9", className: "Cross", kind: "once", date: "2020-01-05", startTime: "18:30" };
+  sched.listSchedules.mockResolvedValue([
+    { ...base, scheduleId: "done", active: true },
+    { ...base, scheduleId: "paused", active: false },
+    { ...base, scheduleId: "running", active: true },
+  ]);
+  const exec = (scheduleId: string, status: string) => ({
+    Items: [{ __edb_e__: "execution", __edb_v__: "1", scheduleId, classDate: "2020-01-05", userId: "u1", status, attempts: 1, ttl: 1 }],
+  });
+  ddb.on(QueryCommand).callsFake((input) => {
+    const values = Object.values(input.ExpressionAttributeValues);
+    if (values.includes("SCHEDULE#done")) return exec("done", "success");
+    if (values.includes("SCHEDULE#running")) return exec("running", "running");
+    return { Items: [] };
+  });
+  const res = await send("GET", "/api/schedules", {});
+  expect(JSON.parse(res.body).map((x: { scheduleId: string }) => x.scheduleId)).toEqual(["running"]);
+  expect(sched.dropSchedule.mock.calls.map((call) => call.slice(1))).toEqual([
+    ["u1", "done"],
+    ["u1", "paused"],
+  ]);
 });
 
 it.each([

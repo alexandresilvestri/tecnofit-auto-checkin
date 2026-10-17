@@ -1400,7 +1400,7 @@ components:
           properties:
             finished:
               type: boolean
-              description: '`true` for a `once` schedule whose job already fired.'
+              description: '`true` for a `once` schedule whose job already fired but whose run has not ended. When the run ends, or when the schedule is paused, the listing deletes the schedule and leaves it out.'
             nextClass:
               description: Next class whose job has not fired yet. `null` when paused or finished.
               oneOf:
