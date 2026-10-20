@@ -15,7 +15,7 @@ type Cls = { name: string; time: string; count: number; capacity: number };
 const DAY_NAME = ["no domingo", "na segunda", "na terça", "na quarta", "na quinta", "na sexta", "no sábado"];
 const TOO_LATE = "O check-in desta aula já foi liberado. Faça pelo app da Tecnofit.";
 const CHOICE =
-  "relative flex h-8 items-center justify-center rounded-lg text-sm/5 font-semibold text-fg hover:text-fg-emphasis has-checked:bg-accent has-checked:text-fg-on-accent";
+  "relative flex items-center justify-center text-sm/5 font-semibold text-fg hover:text-fg-emphasis has-checked:bg-accent has-checked:text-fg-on-accent";
 const CHOICE_INPUT = "absolute inset-0 size-full cursor-pointer appearance-none rounded-[inherit]";
 
 const addDays = (n: number) => {
@@ -46,6 +46,7 @@ export function NewSchedule() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [searching, setSearching] = useState(false);
+  const found = !!classes?.length;
 
   function fail(e: unknown) {
     if (!guard(e)) setError(errorMessage(e));
@@ -58,7 +59,7 @@ export function NewSchedule() {
   }
 
   async function searchWeekly() {
-    const found = await Promise.all(
+    const results = await Promise.all(
       weekdays.map(async (day) => {
         for (const date of [dateFor(day, 0), dateFor(day, 1)]) {
           const list = await get<Cls[]>(`/api/classes?date=${date}`);
@@ -66,9 +67,9 @@ export function NewSchedule() {
         }
       }),
     );
-    const empty = found.indexOf(undefined);
+    const empty = results.indexOf(undefined);
     if (empty >= 0) return setMissing(weekdays[empty]);
-    const [first, ...rest] = found as { date: string; list: Cls[] }[];
+    const [first, ...rest] = results as { date: string; list: Cls[] }[];
     setRefDate(first.date);
     setClasses(first.list.filter((c) => rest.every((r) => r.list.some((o) => o.name === c.name && o.time === c.time))));
   }
@@ -100,6 +101,7 @@ export function NewSchedule() {
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!found) return search();
     if (!selected) return;
     setBusy(true);
     setError("");
@@ -128,7 +130,7 @@ export function NewSchedule() {
         <legend className="mb-2 text-sm/5 text-fg">Com que frequência?</legend>
         <div className="grid grid-cols-2 gap-1 rounded-xl border border-line-interactive bg-interactive p-1">
           {([[false, "Uma vez"], [true, "Toda semana"]] as const).map(([value, label]) => (
-            <label key={label} className={CHOICE}>
+            <label key={label} className={`${CHOICE} h-8 rounded-lg`}>
               <input type="radio" name="frequency" className={CHOICE_INPUT} checked={weekly === value} onChange={() => chooseFrequency(value)} />
               {label}
             </label>
@@ -141,34 +143,28 @@ export function NewSchedule() {
       {weekly ? (
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-2 text-sm/5 text-fg">Dias</legend>
-          <div className="grid grid-cols-7 gap-1">
-            {WEEKDAYS.map((label, day) => (
-              <label key={label} className={`${CHOICE} border border-line-interactive`}>
+          <div className="grid grid-cols-6 gap-1.5">
+            {WEEKDAYS.map((label, day) => day > 0 && (
+              <label key={label} className={`${CHOICE} h-10 rounded-xl border border-line-interactive bg-interactive has-checked:border-accent`}>
                 <input type="checkbox" className={CHOICE_INPUT} checked={weekdays.includes(day)} onChange={(e) => toggleDay(day, e.target.checked)} />
                 {label}
               </label>
             ))}
           </div>
-          <Button variant="secondary" className="self-start" onClick={search} disabled={!weekdays.length || searching}>
-            Buscar aulas
-          </Button>
         </fieldset>
       ) : (
-        <div className="flex items-end gap-2">
-          <Field label="Data" htmlFor="date" className="min-w-0 flex-1">
-            <Input
-              id="date"
-              type="date"
-              required
-              value={date}
-              onChange={(e) => {
-                setDate(e.target.value);
-                reset();
-              }}
-            />
-          </Field>
-          <Button variant="secondary" onClick={search} disabled={!date || searching}>Buscar aulas</Button>
-        </div>
+        <Field label="Data" htmlFor="date">
+          <Input
+            id="date"
+            type="date"
+            required
+            value={date}
+            onChange={(e) => {
+              setDate(e.target.value);
+              reset();
+            }}
+          />
+        </Field>
       )}
       {missing !== undefined && (
         <p className="text-fg-muted">Sem aulas publicadas {DAY_NAME[missing]}. Desmarque o dia ou tente mais tarde.</p>
@@ -176,7 +172,7 @@ export function NewSchedule() {
       {classes?.length === 0 && (
         <p className="text-fg-muted">{weekly ? "Nenhuma aula em comum nesses dias." : "Nenhuma aula nesta data."}</p>
       )}
-      {classes && classes.length > 0 && (
+      {found && (
         <fieldset className="flex flex-col gap-1">
           <legend className="mb-2 text-sm/5 text-fg">{weekly ? `Aulas em ${dayList(weekdays)}` : "Aula"}</legend>
           {classes.map((c) => (
@@ -204,8 +200,8 @@ export function NewSchedule() {
         </Card>
       )}
       {error && <ErrorText>{error}</ErrorText>}
-      <Button type="submit" size="lg" disabled={!selected || busy || tooLate}>
-        {weekly ? "Agendar toda semana" : "Agendar uma vez"}
+      <Button type="submit" size="lg" disabled={found ? !selected || busy || tooLate : searching || (weekly ? !weekdays.length : !date)}>
+        {found ? "Agendar" : "Buscar aulas"}
       </Button>
       {searching && <Pending title="Buscando aulas" />}
       {busy && <Pending title="Salvando agendamento" />}

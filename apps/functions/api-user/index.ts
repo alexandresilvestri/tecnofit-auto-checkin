@@ -65,7 +65,7 @@ const createSchema = z.discriminatedUnion("kind", [
   z.object({
     ...common,
     kind: z.literal("weekly"),
-    weekdays: z.array(z.number().int().min(0).max(6)).min(1).refine((days) => new Set(days).size === days.length),
+    weekdays: z.array(z.number().int().min(1).max(6)).min(1).refine((days) => new Set(days).size === days.length),
   }),
   z.object({ ...common, kind: z.literal("once") }),
 ]);

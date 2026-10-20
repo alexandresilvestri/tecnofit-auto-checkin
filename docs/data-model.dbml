@@ -105,7 +105,7 @@ Table main.schedule {
   className string [not null, note: 'Tecnofit event name']
   startTime string [not null, note: 'HH:MM, America/Sao_Paulo']
   kind main.schedule_kind [not null]
-  weekdays list [note: 'weekly only; numbers 0 (Sunday) to 6']
+  weekdays list [note: 'weekly only; numbers 1 (Monday) to 6']
   date string [note: 'once only; YYYY-MM-DD']
   active boolean [not null]
   pausedBySuspension boolean [note: 'true while paused by an admin suspension']

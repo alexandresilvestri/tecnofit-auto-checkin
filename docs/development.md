@@ -217,7 +217,7 @@ CHECKIN_ENV=dev npm run schedule -- remove --user <userId> --schedule <scheduleI
 
 - `classes` lists the day's classes with occupancy.
 - `add` without `--weekdays` books the class once on `--date`. With `--weekdays`, it books weekly; `--date` is then the date used to confirm the class exists.
-- Weekdays are numbers from `0` (Sunday) to `6` (Saturday).
+- Weekdays are numbers from `1` (Monday) to `6` (Saturday).
 - `add` prints the new `scheduleId` and its Scheduler expression.
 - `list` and `remove` show and delete a user's schedules.
 

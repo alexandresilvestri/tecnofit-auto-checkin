@@ -134,7 +134,7 @@ The other lists return everything in one response: invites, users and executions
 - `nextClass` is `YYYY-MM-DD HH:mm` in `America/Sao_Paulo`.
 - `createdAt`, `lastSeenAt`, `usedAt` and audit `at` are ISO 8601 timestamps in UTC.
 - Invite `expiresAt` is epoch milliseconds.
-- Weekdays are integers from 0 (Sunday) to 6 (Saturday).
+- Weekdays are integers from 1 (Monday) to 6 (Saturday). Sunday is rejected.
 - Audit `from` and `to` are whole days at UTC−03:00.
 - Enum values are in [data-model.md](data-model.md#entities) and in the `openapi.yaml` schemas, such as `ExecutionStatus`, `WorkerErrorCode` and `AuditAction`.
 

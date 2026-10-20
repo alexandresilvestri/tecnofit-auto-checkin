@@ -83,13 +83,14 @@ test("convite, cadastro e agendamento semanal", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Agendamentos" })).toHaveAttribute("aria-current", "page");
   await page.getByRole("link", { name: "Novo" }).click();
   await page.getByLabel("Toda semana").check();
+  await expect(page.getByLabel("Dom")).toHaveCount(0);
   await page.getByLabel("Seg").check();
   await page.getByRole("button", { name: "Buscar aulas" }).click();
   await expect(page.getByRole("group", { name: "Aulas em seg" })).toBeVisible();
   await page.getByLabel(/07:00 — CrossFit/).check();
   await expect(page.getByText(/^Próximo check-in: dom \d{2}\/\d{2} às 19:00$/)).toBeVisible();
   const created = page.waitForRequest((r) => r.url().endsWith("/api/schedules") && r.method() === "POST");
-  await page.getByRole("button", { name: "Agendar toda semana" }).click();
+  await page.getByRole("button", { name: "Agendar" }).click();
   expect((await created).postDataJSON()).toMatchObject({ className: "CrossFit", startTime: "07:00", kind: "weekly", weekdays: [1] });
 
   await expect(page).toHaveURL(/\/app$/);
@@ -119,7 +120,7 @@ test("agendamento de uma vez com resumo", async ({ page }) => {
   await page.getByRole("button", { name: "Buscar aulas" }).click();
   await page.getByLabel(/07:00 — CrossFit/).check();
   await expect(page.getByText("O check-in desta aula já foi liberado. Faça pelo app da Tecnofit.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Agendar uma vez" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Agendar" })).toBeDisabled();
 
   await page.getByLabel("Data").fill("2099-01-05");
   await page.getByRole("button", { name: "Buscar aulas" }).click();
@@ -127,7 +128,7 @@ test("agendamento de uma vez com resumo", async ({ page }) => {
   await expect(page.getByText("CrossFit, seg 05/01, 07:00")).toBeVisible();
   await expect(page.getByText("Check-in: dom 04/01 às 19:00")).toBeVisible();
   const created = page.waitForRequest((r) => r.url().endsWith("/api/schedules") && r.method() === "POST");
-  await page.getByRole("button", { name: "Agendar uma vez" }).click();
+  await page.getByRole("button", { name: "Agendar" }).click();
   expect((await created).postDataJSON()).toEqual({ className: "CrossFit", startTime: "07:00", date: "2099-01-05", kind: "once" });
 
   await expect(page).toHaveURL(/\/app$/);

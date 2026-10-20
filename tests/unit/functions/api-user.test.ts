@@ -313,6 +313,7 @@ it.each([
   ["empty weekdays", { ...weekly, weekdays: [] }],
   ["repeated weekdays", { ...weekly, weekdays: [1, 1] }],
   ["weekday out of range", { ...weekly, weekdays: [7] }],
+  ["sunday weekday", { ...weekly, weekdays: [0] }],
 ])("create schedule with %s returns 400", async (_n, body) => {
   const res = await send("POST", "/api/schedules", fetchHeaders, { body });
   expect(res.statusCode).toBe(400);

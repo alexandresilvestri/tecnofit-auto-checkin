@@ -1228,8 +1228,8 @@ components:
       maxLength: 200
     Weekday:
       type: integer
-      description: 0 is Sunday, 6 is Saturday.
-      minimum: 0
+      description: 1 is Monday, 6 is Saturday. Sunday is not accepted because the gym has no Sunday classes.
+      minimum: 1
       maximum: 6
     Health:
       type: object

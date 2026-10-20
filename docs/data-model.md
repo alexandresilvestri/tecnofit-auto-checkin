@@ -115,7 +115,7 @@ A recurring or one-off check-in rule. Each item pairs with an EventBridge Schedu
 | `className` | string | yes | Tecnofit event `name` |
 | `startTime` | string | yes | `HH:MM` |
 | `kind` | enum | yes | `weekly`, `once` |
-| `weekdays` | list of number | `weekly` only | `0` (Sunday) to `6` (Saturday) |
+| `weekdays` | list of number | `weekly` only | `1` (Monday) to `6` (Saturday) |
 | `date` | string | `once` only | `YYYY-MM-DD` |
 | `active` | boolean | yes | `false` disables the EventBridge schedule |
 | `pausedBySuspension` | boolean | no | `true` while a suspension paused the schedule |
