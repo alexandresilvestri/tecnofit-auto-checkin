@@ -1,0 +1,89 @@
+name: pr
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      moto:
+        image: motoserver/moto:5.2.4
+        ports:
+          - 5000:5000
+    env:
+      MOTO_ENDPOINT: http://localhost:5000
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm run test:integration
+      - run: npm run build
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: hashicorp/setup-terraform@v4.0.1
+        with:
+          terraform_version: 1.15.9
+      - run: terraform fmt -check -recursive infra
+      - run: terraform init -backend=false && terraform validate
+        working-directory: infra/envs/dev
+      - run: terraform init -backend=false && terraform validate
+        working-directory: infra/bootstrap
+
+  plan:
+    needs: [check, terraform]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+      TF_CLOUD_ORGANIZATION: ${{ vars.TF_CLOUD_ORGANIZATION }}
+      TF_WORKSPACE: checkin-dev
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: echo 'artifact_version = "${{ github.event.pull_request.head.sha }}"' > infra/envs/dev/artifact.auto.tfvars
+      - id: upload
+        uses: hashicorp/tfc-workflows-github/actions/upload-configuration@v1.3.2
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          directory: infra
+          speculative: true
+      - id: run
+        uses: hashicorp/tfc-workflows-github/actions/create-run@v1.3.2
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          configuration_version: ${{ steps.upload.outputs.configuration_version_id }}
+          plan_only: true
+      - id: plan
+        uses: hashicorp/tfc-workflows-github/actions/plan-output@v1.3.2
+        with:
+          plan: ${{ steps.run.outputs.plan_id }}
+      - uses: actions/github-script@v9.0.0
+        env:
+          PLAN_ADD: ${{ steps.plan.outputs.add }}
+          PLAN_CHANGE: ${{ steps.plan.outputs.change }}
+          PLAN_DESTROY: ${{ steps.plan.outputs.destroy }}
+          RUN_LINK: ${{ steps.run.outputs.run_link }}
+        with:
+          script: |
+            const { PLAN_ADD, PLAN_CHANGE, PLAN_DESTROY, RUN_LINK } = process.env
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `Terraform plan (checkin-dev): ${PLAN_ADD} to add, ${PLAN_CHANGE} to change, ${PLAN_DESTROY} to destroy.\n\n${RUN_LINK}`,
+            })
