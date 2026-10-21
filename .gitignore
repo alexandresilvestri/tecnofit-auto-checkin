@@ -2,3 +2,4 @@ node_modules/
 dist/
 .superpowers/
 .terraform/
+infra/envs/*/artifact.auto.tfvars
