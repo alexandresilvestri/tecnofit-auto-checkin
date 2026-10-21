@@ -16,13 +16,13 @@ terraform {
 }
 
 provider "aws" {
-  region = "sa-east-1"
+  region = "us-east-1"
 }
 
 data "aws_caller_identity" "current" {}
 
 resource "aws_s3_bucket" "artifacts" {
-  bucket = "checkin-artifacts-${data.aws_caller_identity.current.account_id}"
+  bucket = "checkin-artifacts-${data.aws_caller_identity.current.account_id}-us-east-1"
 }
 
 resource "aws_s3_bucket_public_access_block" "artifacts" {
