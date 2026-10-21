@@ -25,14 +25,17 @@ const deps = {
   now: Date.now,
 };
 
-const checkSchema = z.object({ token: z.string().min(1) });
+const token = z.string().min(1).max(128);
+const email = z.email().max(254);
+const password = z.string().min(1).max(256);
+const checkSchema = z.object({ token });
 const onboardingSchema = z.object({
-  token: z.string().min(1),
-  email: z.string().min(1),
-  password: z.string().min(1),
-  consentVersion: z.string().min(1),
+  token,
+  email,
+  password,
+  consentVersion: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
-const loginSchema = z.object({ email: z.string().min(1), password: z.string().min(1) });
+const loginSchema = z.object({ email, password });
 
 const invalidRequest = { message: "Requisição inválida." };
 

@@ -117,7 +117,7 @@ export async function redeemInvite(
         .catch((err: unknown) => {
           if (!isConditionalFailure(err)) throw err;
         });
-      if (burned) await audit({ ...anonymous, action: "invite.burned" });
+      if (burned) await audit({ actorType: "system", actorId: "system", action: "invite.burned", result: "success" });
     }
     await denied("invalid_credentials");
     throw new InvalidCredentials();

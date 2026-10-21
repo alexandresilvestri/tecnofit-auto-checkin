@@ -232,7 +232,9 @@ it("burns the invite on the 5th wrong password", async () => {
     metadata: { reason: "invalid_credentials" },
     ...META,
   });
-  expect(log.filter((ev) => ev.action === "invite.burned")).toHaveLength(1);
+  const burned = log.filter((ev) => ev.action === "invite.burned");
+  expect(burned).toHaveLength(1);
+  expect(burned[0]).toMatchObject({ actorType: "system", actorId: "system", result: "success" });
   await expect(redeemInvite(deps(), input(token, email), META)).rejects.toBeInstanceOf(InviteInvalid);
 });
 

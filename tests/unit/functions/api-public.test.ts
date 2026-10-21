@@ -45,8 +45,8 @@ const send = (method: string, path: string, body?: unknown, headers: Record<stri
     isBase64Encoded: false,
   } as never) as Promise<{ statusCode: number; body: string; cookies?: string[] }>;
 
-const onboarding = { token: "t", email: "a@b.c", password: "pw", consentVersion: "v1" };
-const login = { email: "a@b.c", password: "pw" };
+const onboarding = { token: "t", email: "a@b.co", password: "pw", consentVersion: "2026-10-21" };
+const login = { email: "a@b.co", password: "pw" };
 
 it("health returns ok", async () => {
   const res = await send("GET", "/api/health", undefined, {});
@@ -70,7 +70,9 @@ it.each([
 it.each([
   ["/api/invites/check", {}],
   ["/api/onboarding", { ...onboarding, email: undefined }],
-  ["/api/auth/login", { email: "a@b.c" }],
+  ["/api/onboarding", { ...onboarding, email: `${"a".repeat(250)}@b.co` }],
+  ["/api/onboarding", { ...onboarding, consentVersion: "v1" }],
+  ["/api/auth/login", { email: "a@b.co" }],
   ["/api/auth/login", "not json"],
 ])("POST %s with invalid body returns 400", async (path, body) => {
   const res = await send("POST", path, body);
