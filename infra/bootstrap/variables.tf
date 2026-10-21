@@ -9,5 +9,5 @@ variable "hcp_project" {
 
 variable "github_repo" {
   type    = string
-  default = "alexandresilvestri/tecnoti-auto-checkin"
+  default = "alexandresilvestri/tecnofit-auto-checkin"
 }
