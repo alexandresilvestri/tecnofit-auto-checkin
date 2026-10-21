@@ -64,9 +64,10 @@ app.post("/api/auth/logout", async (c) => {
   const token = getCookie(c, "sid");
   if (token) await revokeSession(entities, token);
   const { sourceIp, userAgent } = c.env.event.requestContext.http;
+  const ip = c.req.header("cloudfront-viewer-address")?.replace(/:[^:]*$/, "") ?? sourceIp;
   await writeAudit(
     entities,
-    { actorType: "user", actorId: userId, action: "user.logout", result: "success", ip: sourceIp, userAgent },
+    { actorType: "user", actorId: userId, action: "user.logout", result: "success", ip, userAgent },
     Date.now(),
   );
   deleteCookie(c, "sid", cookieOptions);

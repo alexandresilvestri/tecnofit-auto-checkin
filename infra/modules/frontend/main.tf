@@ -52,6 +52,26 @@ resource "aws_cloudfront_function" "spa" {
   EOT
 }
 
+resource "aws_cloudfront_origin_request_policy" "api" {
+  name = "checkin-${var.env}-api"
+
+  headers_config {
+    header_behavior = "whitelist"
+
+    headers {
+      items = ["x-requested-with", "content-type", "user-agent", "CloudFront-Viewer-Address"]
+    }
+  }
+
+  cookies_config {
+    cookie_behavior = "all"
+  }
+
+  query_strings_config {
+    query_string_behavior = "all"
+  }
+}
+
 resource "aws_cloudfront_response_headers_policy" "web" {
   name = "checkin-${var.env}-web"
 
@@ -129,9 +149,9 @@ resource "aws_cloudfront_distribution" "web" {
     target_origin_id           = "api"
     allowed_methods            = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
     cached_methods             = ["GET", "HEAD"]
-    viewer_protocol_policy     = "redirect-to-https"
+    viewer_protocol_policy     = "https-only"
     cache_policy_id            = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
-    origin_request_policy_id   = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
+    origin_request_policy_id   = aws_cloudfront_origin_request_policy.api.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.web.id
   }
 

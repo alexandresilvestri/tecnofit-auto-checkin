@@ -109,6 +109,17 @@ it("login returns 204 with exact session cookie and request meta", async () => {
 });
 
 it.each([
+  ["203.0.113.7:46532", "203.0.113.7"],
+  ["2001:db8::7:46532", "2001:db8::7"],
+  [undefined, "1.2.3.4"],
+])("login takes the ip from CloudFront-Viewer-Address %s as %s", async (viewer, ip) => {
+  sessions.loginUser.mockResolvedValue({ userId: "u1", sessionToken: "tok" });
+  const headers = viewer ? { "x-requested-with": "fetch", "cloudfront-viewer-address": viewer } : undefined;
+  await send("POST", "/api/auth/login", login, headers);
+  expect(sessions.loginUser.mock.calls[0]![2]).toEqual({ ip, userAgent: "ua-test" });
+});
+
+it.each([
   ["InviteInvalid", () => new errors.InviteInvalid(), 410, "Convite inválido ou expirado."],
   ["AccountExists", () => new errors.AccountExists(), 409, "Esta conta já está cadastrada. Faça login."],
   ["InvalidCredentials", () => new errors.InvalidCredentials(), 401, "E-mail ou senha inválidos."],

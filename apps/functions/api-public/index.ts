@@ -75,7 +75,7 @@ const parse = async <S extends z.ZodType>(c: Context<Env>, schema: S) => {
 
 const meta = (c: Context<Env>) => {
   const { sourceIp, userAgent } = c.env.event.requestContext.http;
-  return { ip: sourceIp, userAgent };
+  return { ip: c.req.header("cloudfront-viewer-address")?.replace(/:[^:]*$/, "") ?? sourceIp, userAgent };
 };
 
 const setSession = (c: Context<Env>, token: string) =>

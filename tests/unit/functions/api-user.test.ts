@@ -133,3 +133,13 @@ it("logout revokes the session, audits and clears the cookie", async () => {
     userAgent: "ua-test",
   });
 });
+
+it.each([
+  ["203.0.113.7:46532", "203.0.113.7"],
+  ["2001:db8::7:46532", "2001:db8::7"],
+  [undefined, "1.2.3.4"],
+])("logout audits the ip from CloudFront-Viewer-Address %s as %s", async (viewer, ip) => {
+  const headers = viewer ? { "x-requested-with": "fetch", "cloudfront-viewer-address": viewer } : undefined;
+  await send("POST", "/api/auth/logout", headers);
+  expect(audit.writeAudit.mock.calls[0]![1]).toMatchObject({ ip, userAgent: "ua-test" });
+});
