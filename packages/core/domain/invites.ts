@@ -3,7 +3,7 @@ import type { KMSClient } from "@aws-sdk/client-kms";
 import { writeAudit } from "../audit/audit.js";
 import { hashSecret, newSecret } from "../crypto/secret.js";
 import { encryptToken } from "../crypto/token.js";
-import type { Entities } from "../db/entities.js";
+import { isConditionalFailure, type Entities } from "../db/entities.js";
 import { getMe, login, TecnofitError } from "../tecnofit/client.js";
 
 export type PublicDeps = { entities: Entities; kms: KMSClient; keyId: string; now: () => number };
@@ -92,23 +92,34 @@ export async function redeemInvite(
       now(),
     );
   const anonymous = { actorType: "anonymous", actorId: "anonymous", result: "denied" } as const;
+  const denied = (reason: string) => audit({ ...anonymous, action: "invite.redeem_failed", metadata: { reason } });
+  const email = input.email.trim().toLowerCase();
 
-  if (!(await isPending(deps, inviteId))) throw new InviteInvalid();
-  const { data: existing } = await entities.profile.query.byEmail({ tecnofitEmail: input.email }).go();
-  if (existing.length > 0) throw new AccountExists();
+  if (!(await isPending(deps, inviteId))) {
+    await denied("invalid_invite");
+    throw new InviteInvalid();
+  }
+  const { data: existing } = await entities.profile.query.byEmail({ tecnofitEmail: email }).go();
+  if (existing.length > 0) {
+    await denied("account_exists");
+    throw new AccountExists();
+  }
 
-  const tecnofit = await login(input.email, input.password).catch(async (err: unknown) => {
+  const tecnofit = await login(email, input.password).catch(async (err: unknown) => {
     if (!(err instanceof TecnofitError && err.status >= 400 && err.status < 500)) throw err;
     const { data } = await entities.invite.patch({ inviteId }).add({ attempts: 1 }).go({ response: "all_new" });
-    if (data.attempts === MAX_ATTEMPTS) {
-      await entities.invite
+    if (data.attempts >= MAX_ATTEMPTS) {
+      const burned = await entities.invite
         .patch({ inviteId })
         .set({ status: "burned" })
         .where((a, { eq }) => eq(a.status, "pending"))
-        .go();
-      await audit({ ...anonymous, action: "invite.burned" });
+        .go()
+        .catch((err: unknown) => {
+          if (!isConditionalFailure(err)) throw err;
+        });
+      if (burned) await audit({ ...anonymous, action: "invite.burned" });
     }
-    await audit({ ...anonymous, action: "invite.redeem_failed", metadata: { reason: "invalid_credentials" } });
+    await denied("invalid_credentials");
     throw new InvalidCredentials();
   });
 
@@ -116,19 +127,20 @@ export async function redeemInvite(
   const userId = `u_${randomUUID()}`;
   const tokenEnc = await encryptToken(deps.kms, deps.keyId, userId, tecnofit.token);
   const sessionSecret = newSecret();
-  const at = new Date(now()).toISOString();
+  const redeemedAt = now();
+  const at = new Date(redeemedAt).toISOString();
   const { canceled } = await entities.service.transaction
     .write(({ invite, profile, account, session }) => [
       invite
         .patch({ inviteId })
         .set({ status: "used", usedBy: userId, usedAt: at })
-        .where((a, { eq }) => eq(a.status, "pending"))
+        .where((a, { eq, gt }) => `${eq(a.status, "pending")} AND ${gt(a.expiresAt, redeemedAt)}`)
         .commit(),
       profile
         .create({
           userId,
           name: me.name,
-          tecnofitEmail: input.email,
+          tecnofitEmail: email,
           tecnofitUserId: tecnofit.userId,
           status: "active",
           createdAt: at,
@@ -156,7 +168,10 @@ export async function redeemInvite(
         .commit(),
     ])
     .go();
-  if (canceled) throw new InviteInvalid();
+  if (canceled) {
+    await denied("invalid_invite");
+    throw new InviteInvalid();
+  }
 
   await audit({
     actorType: "user",

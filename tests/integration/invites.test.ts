@@ -15,6 +15,7 @@ import {
   redeemInvite,
   type PublicDeps,
 } from "../../packages/core/domain/invites.js";
+import { TecnofitInvalidResponse } from "../../packages/core/tecnofit/client.js";
 import me from "../fixtures/tecnofit/aluno-eu.json";
 import { fakeJwt } from "../fixtures/tecnofit/jwt.js";
 import { awsConfig, createKey, createTestEntities, resetMoto } from "./setup/aws.js";
@@ -24,6 +25,7 @@ const PASSWORD = "Senha-Correta-123";
 const WRONG = "Senha-Errada-456";
 const JWT = fakeJwt({ user_id: 28715453, empresa_id: 161322, exp: 1900000000 });
 const META = { ip: "203.0.113.7", userAgent: "vitest-agent" };
+const AUTH = "https://rest.tecnofit.com.br/auth";
 
 const kms = new KMSClient(awsConfig);
 const raw = new DynamoDBClient(awsConfig);
@@ -32,13 +34,15 @@ let keyId: string;
 let t: number;
 let n = 0;
 let logins: number;
+let authEmail: string | undefined;
 let beforeAuth: () => Promise<void>;
 
 const server = setupServer(
-  http.post("https://rest.tecnofit.com.br/auth", async ({ request }) => {
+  http.post(AUTH, async ({ request }) => {
     logins++;
     await beforeAuth();
-    const body = (await request.json()) as { password: string };
+    const body = (await request.json()) as { email: string; password: string };
+    authEmail = body.email;
     return body.password === PASSWORD ? HttpResponse.json({ token: JWT }) : new HttpResponse(null, { status: 401 });
   }),
   http.get("https://rest.tecnofit.com.br/aluno/eu", () => HttpResponse.json(me)),
@@ -56,7 +60,9 @@ afterAll(() => server.close());
 beforeEach(() => {
   t = NOW;
   logins = 0;
+  authEmail = undefined;
   beforeAuth = async () => {};
+  server.resetHandlers();
 });
 
 const deps = (): PublicDeps => ({ entities: e, kms, keyId, now: () => t });
@@ -69,6 +75,8 @@ const input = (token: string, email: string, password = PASSWORD) => ({
 });
 const invite = async (inviteId: string) => (await e.invite.get({ inviteId }).go()).data;
 const events = async (targetId: string) => (await e.audit.query.byTarget({ targetId }).go()).data;
+const failures = async (targetId: string) =>
+  (await events(targetId)).filter((ev) => ev.action === "invite.redeem_failed").map((ev) => ev.metadata?.reason);
 
 it("redeems an invite into a profile, account, session and event", async () => {
   const { token, inviteId, expiresAt } = await createInvite(deps(), { label: "amigo", createdBy: "cli" });
@@ -88,8 +96,9 @@ it("redeems an invite into a profile, account, session and event", async () => {
   t = NOW + 60_000;
   const at = new Date(t).toISOString();
   const email = nextEmail();
-  const { userId, sessionToken } = await redeemInvite(deps(), input(token, email), META);
+  const { userId, sessionToken } = await redeemInvite(deps(), input(token, ` ${email.toUpperCase()} `), META);
   expect(userId).toMatch(/^u_/);
+  expect(authEmail).toBe(email);
   expect((await e.profile.get({ userId }).go()).data).toMatchObject({
     name: "Aluno Teste",
     tecnofitEmail: email,
@@ -130,9 +139,18 @@ it("redeems an invite into a profile, account, session and event", async () => {
 });
 
 it("rejects a second redeem", async () => {
-  const { token } = await createInvite(deps(), { createdBy: "cli" });
+  const { token, inviteId } = await createInvite(deps(), { createdBy: "cli" });
   await redeemInvite(deps(), input(token, nextEmail()), META);
   await expect(redeemInvite(deps(), input(token, nextEmail()), META)).rejects.toBeInstanceOf(InviteInvalid);
+  const [failed] = (await events(inviteId)).filter((ev) => ev.action === "invite.redeem_failed");
+  expect(failed).toMatchObject({
+    actorType: "anonymous",
+    actorId: "anonymous",
+    targetType: "invite",
+    result: "denied",
+    metadata: { reason: "invalid_invite" },
+    ...META,
+  });
 });
 
 it("lets exactly one of two concurrent redeems through", async () => {
@@ -160,6 +178,19 @@ it("rejects an expired invite that is still stored", async () => {
   expect(await checkInvite(deps(), token)).toBe(false);
   expect((await invite(inviteId))?.status).toBe("pending");
   expect(logins).toBe(0);
+  expect(await failures(inviteId)).toEqual(["invalid_invite"]);
+});
+
+it("rejects an invite that expires during the Tecnofit login", async () => {
+  const { token, inviteId, expiresAt } = await createInvite(deps(), { createdBy: "cli" });
+  const email = nextEmail();
+  beforeAuth = async () => {
+    t = expiresAt;
+  };
+  await expect(redeemInvite(deps(), input(token, email), META)).rejects.toBeInstanceOf(InviteInvalid);
+  expect((await invite(inviteId))?.status).toBe("pending");
+  expect((await e.profile.query.byEmail({ tecnofitEmail: email }).go()).data).toHaveLength(0);
+  expect(await failures(inviteId)).toEqual(["invalid_invite"]);
 });
 
 it("refuses an existing account without consuming the invite", async () => {
@@ -175,10 +206,13 @@ it("refuses an existing account without consuming the invite", async () => {
     })
     .go();
   const { token, inviteId } = await createInvite(deps(), { createdBy: "cli" });
-  await expect(redeemInvite(deps(), input(token, email), META)).rejects.toBeInstanceOf(AccountExists);
+  await expect(redeemInvite(deps(), input(token, `  ${email.toUpperCase()}`), META)).rejects.toBeInstanceOf(
+    AccountExists,
+  );
   expect(await invite(inviteId)).toMatchObject({ status: "pending", attempts: 0 });
   expect(await checkInvite(deps(), token)).toBe(true);
   expect(logins).toBe(0);
+  expect(await failures(inviteId)).toEqual(["account_exists"]);
 });
 
 it("burns the invite on the 5th wrong password", async () => {
@@ -200,6 +234,47 @@ it("burns the invite on the 5th wrong password", async () => {
   });
   expect(log.filter((ev) => ev.action === "invite.burned")).toHaveLength(1);
   await expect(redeemInvite(deps(), input(token, email), META)).rejects.toBeInstanceOf(InviteInvalid);
+});
+
+it("keeps a used invite when the 5th wrong password races a redeem", async () => {
+  const { token, inviteId } = await createInvite(deps(), { createdBy: "cli" });
+  await e.invite.patch({ inviteId }).set({ attempts: 4 }).go();
+  beforeAuth = async () => {
+    await e.invite.patch({ inviteId }).set({ status: "used", usedBy: "u_other" }).go();
+  };
+  await expect(redeemInvite(deps(), input(token, nextEmail(), WRONG), META)).rejects.toBeInstanceOf(
+    InvalidCredentials,
+  );
+  expect(await invite(inviteId)).toMatchObject({ status: "used", attempts: 5 });
+  expect((await events(inviteId)).filter((ev) => ev.action === "invite.burned")).toHaveLength(0);
+  expect(await failures(inviteId)).toEqual(["invalid_credentials"]);
+});
+
+it("propagates a Tecnofit 500 without counting an attempt", async () => {
+  server.use(http.post(AUTH, () => new HttpResponse(null, { status: 500 })));
+  const { token, inviteId } = await createInvite(deps(), { createdBy: "cli" });
+  await expect(redeemInvite(deps(), input(token, nextEmail()), META)).rejects.toMatchObject({
+    name: "TecnofitError",
+    status: 500,
+  });
+  expect(await invite(inviteId)).toMatchObject({ status: "pending", attempts: 0 });
+  expect(await failures(inviteId)).toEqual([]);
+});
+
+it("propagates a token that is not a JWT without counting an attempt", async () => {
+  server.use(http.post(AUTH, () => HttpResponse.json({ token: "not-a-jwt" })));
+  const { token, inviteId } = await createInvite(deps(), { createdBy: "cli" });
+  await expect(redeemInvite(deps(), input(token, nextEmail()), META)).rejects.toBeInstanceOf(
+    TecnofitInvalidResponse,
+  );
+  expect(await invite(inviteId)).toMatchObject({ status: "pending", attempts: 0 });
+});
+
+it("omits metadata from invite.created without a label", async () => {
+  const { inviteId } = await createInvite(deps(), { createdBy: "cli" });
+  const [created] = await events(inviteId);
+  expect(created.action).toBe("invite.created");
+  expect(Object.keys(created)).not.toContain("metadata");
 });
 
 it("never stores the password or raw secrets", async () => {
