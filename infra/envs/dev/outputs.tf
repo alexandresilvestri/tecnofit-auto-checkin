@@ -18,6 +18,14 @@ output "main_table_arn" {
   value = module.data.main_table_arn
 }
 
+output "audit_table_name" {
+  value = module.data.audit_table_name
+}
+
+output "audit_table_arn" {
+  value = module.data.audit_table_arn
+}
+
 output "token_key_arn" {
   value = module.data.token_key_arn
 }

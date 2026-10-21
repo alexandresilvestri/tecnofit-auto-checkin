@@ -13,7 +13,7 @@ export async function loadEnv() {
   return {
     entities: createEntities(
       DynamoDBDocumentClient.from(new DynamoDBClient({ region: REGION })),
-      `checkin-${env}-main`,
+      { main: `checkin-${env}-main`, audit: `checkin-${env}-audit` },
     ),
     kms: new KMSClient({ region: REGION }),
     scheduler: new SchedulerClient({ region: REGION }),
