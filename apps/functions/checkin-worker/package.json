@@ -1,0 +1,5 @@
+{
+  "name": "@checkin/checkin-worker",
+  "private": true,
+  "type": "module"
+}

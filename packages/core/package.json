@@ -1,0 +1,6 @@
+{
+  "name": "@checkin/core",
+  "private": true,
+  "type": "module",
+  "exports": { "./*": "./*.ts" }
+}

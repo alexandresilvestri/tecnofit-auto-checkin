@@ -1,0 +1,32 @@
+{
+  "name": "tecnofit-auto-checkin",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/functions/*"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "build": "node scripts/build-functions.mjs",
+    "moto:up": "docker compose -f tests/docker-compose.yml up -d",
+    "connect": "tsx scripts/connect.ts",
+    "schedule": "tsx scripts/schedule.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.6.5",
+    "esbuild": "0.28.2",
+    "eslint": "10.13.0",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.0",
+    "vitest": "5.0.5"
+  }
+}
