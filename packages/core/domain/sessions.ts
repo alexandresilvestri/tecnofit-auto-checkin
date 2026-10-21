@@ -1,7 +1,7 @@
 import { writeAudit } from "../audit/audit.js";
 import { hashSecret, newSecret } from "../crypto/secret.js";
 import { encryptToken } from "../crypto/token.js";
-import type { Entities } from "../db/entities.js";
+import { isConditionalFailure, type Entities } from "../db/entities.js";
 import { login, TecnofitError } from "../tecnofit/client.js";
 import { InvalidCredentials, type PublicDeps, type RequestMeta } from "./invites.js";
 
@@ -34,10 +34,17 @@ export async function resolveSession(
 }
 
 export async function touchSession(entities: Entities, sessionId: string, now: number): Promise<boolean> {
-  const { data } = await entities.session.get({ sessionId }).go();
-  if (!data || now - Date.parse(data.lastSeenAt) <= TOUCH_AFTER_MS) return false;
-  await entities.session.patch({ sessionId }).set({ lastSeenAt: new Date(now).toISOString() }).go();
-  return true;
+  const cutoff = new Date(now - TOUCH_AFTER_MS).toISOString();
+  return entities.session
+    .patch({ sessionId })
+    .set({ lastSeenAt: new Date(now).toISOString() })
+    .where((a, { lt }) => lt(a.lastSeenAt, cutoff))
+    .go()
+    .then(() => true)
+    .catch((err: unknown) => {
+      if (!isConditionalFailure(err)) throw err;
+      return false;
+    });
 }
 
 export async function revokeSession(entities: Entities, token: string): Promise<void> {
@@ -84,10 +91,9 @@ export async function loginUser(
   });
 
   const { userId } = profile;
-  const { data: accounts } = await entities.account.query.byUser({ userId }).go();
   const tokenEnc = await encryptToken(deps.kms, deps.keyId, userId, tecnofit.token);
   await entities.account
-    .patch({ userId, empresaId: accounts[0]!.empresaId })
+    .patch({ userId, empresaId: String(tecnofit.empresaId) })
     .set({ tokenEnc, tokenExp: tecnofit.exp, status: "ok" })
     .go();
   const sessionToken = await createSession(entities, userId, meta, now());

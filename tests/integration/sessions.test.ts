@@ -1,7 +1,7 @@
 import { KMSClient } from "@aws-sdk/client-kms";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import { afterAll, beforeAll, beforeEach, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from "vitest";
 import { hashSecret } from "../../packages/core/crypto/secret.js";
 import { decryptToken } from "../../packages/core/crypto/token.js";
 import type { Entities } from "../../packages/core/db/entities.js";
@@ -55,6 +55,8 @@ beforeEach(() => {
   logins = 0;
   jwt = OLD_JWT;
 });
+
+afterEach(() => server.resetHandlers());
 
 const deps = (): PublicDeps => ({ entities: e, kms, keyId, now: () => t });
 const signup = async () => {
@@ -129,9 +131,34 @@ it("gives the same error for unknown user, wrong password and suspended user", a
 it("does not count Tecnofit outages as failures", async () => {
   const { email } = await signup();
   server.use(http.post("https://rest.tecnofit.com.br/auth", () => new HttpResponse(null, { status: 503 })));
-  await expect(loginUser(deps(), { email, password: PASSWORD }, META)).rejects.not.toBeInstanceOf(InvalidCredentials);
+  await expect(loginUser(deps(), { email, password: PASSWORD }, META)).rejects.toMatchObject({ status: 503 });
   expect((await e.loginFail.get({ email }).go()).data).toBeNull();
-  server.resetHandlers();
+});
+
+it("updates only the account of the empresa in the JWT, encrypted for the user", async () => {
+  const { email, userId } = await signup();
+  const sibling = { userId, empresaId: "999", tokenEnc: "keep", tokenExp: 1, boxName: "Other", status: "ok" } as const;
+  await e.account.create(sibling).go();
+  await loginUser(deps(), { email, password: PASSWORD }, META);
+  expect((await e.account.get({ userId, empresaId: "999" }).go()).data).toMatchObject(sibling);
+  const account = (await e.account.get({ userId, empresaId: "161322" }).go()).data;
+  expect(await decryptToken(kms, userId, account!.tokenEnc)).toBe(NEW_JWT);
+  await expect(decryptToken(kms, "u_other", account!.tokenEnc)).rejects.toThrow();
+});
+
+it("fails closed when the empresa in the JWT has no account", async () => {
+  const { email, userId } = await signup();
+  jwt = fakeJwt({ user_id: 28715453, empresa_id: 777, exp: 1950000000 });
+  await expect(loginUser(deps(), { email, password: PASSWORD }, META)).rejects.toBeDefined();
+  expect((await e.account.get({ userId, empresaId: "777" }).go()).data).toBeNull();
+});
+
+it("keeps the lockout window anchored at the first failure", async () => {
+  const { email } = await signup();
+  await loginUser(deps(), { email, password: "x" }, META).catch(() => {});
+  t = NOW + 60_000;
+  await loginUser(deps(), { email, password: "x" }, META).catch(() => {});
+  expect((await e.loginFail.get({ email }).go()).data).toMatchObject({ count: 2, ttl: Math.floor(NOW / 1000) + 900 });
 });
 
 it("touches a session only after 24 hours, resolves and revokes it", async () => {
@@ -144,4 +171,5 @@ it("touches a session only after 24 hours, resolves and revokes it", async () =>
   expect(await touchSession(e, sessionId, NOW + 24 * 3600_000 + 2)).toBe(false);
   await revokeSession(e, token);
   expect(await resolveSession(e, token)).toBeNull();
+  expect(await touchSession(e, sessionId, NOW + 99 * 3600_000)).toBe(false);
 });
