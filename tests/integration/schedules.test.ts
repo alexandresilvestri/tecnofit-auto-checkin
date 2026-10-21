@@ -1,18 +1,16 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { CreateKeyCommand, KMSClient } from "@aws-sdk/client-kms";
+import { KMSClient } from "@aws-sdk/client-kms";
 import {
   CreateScheduleCommand,
   CreateScheduleGroupCommand,
   GetScheduleCommand,
   SchedulerClient,
 } from "@aws-sdk/client-scheduler";
-import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { mockClient, type AwsClientStub } from "aws-sdk-client-mock";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { encryptToken } from "../../packages/core/crypto/token.js";
-import { createEntities, type Entities } from "../../packages/core/db/entities.js";
+import type { Entities } from "../../packages/core/db/entities.js";
 import {
   addSchedule,
   ClassNotFound,
@@ -23,7 +21,7 @@ import {
 } from "../../packages/core/domain/schedules.js";
 import events from "../fixtures/tecnofit/events.json";
 import { fakeJwt } from "../fixtures/tecnofit/jwt.js";
-import { awsConfig, createMainTable, resetMoto } from "./setup/aws.js";
+import { awsConfig, createKey, createTestEntities, resetMoto } from "./setup/aws.js";
 
 const TOKEN = fakeJwt({ user_id: 28715453, empresa_id: 161322, exp: 1900000000 });
 const WORKER_ARN = "arn:aws:lambda:sa-east-1:940482447658:function:checkin-dev-worker";
@@ -51,8 +49,8 @@ let n = 0;
 beforeAll(async () => {
   server.listen({ onUnhandledFrame: "bypass" });
   await resetMoto();
-  e = createEntities(DynamoDBDocumentClient.from(new DynamoDBClient(awsConfig)), await createMainTable());
-  keyId = (await kms.send(new CreateKeyCommand({}))).KeyMetadata!.KeyId!;
+  e = await createTestEntities();
+  keyId = await createKey(kms);
   await realScheduler.send(new CreateScheduleGroupCommand({ Name: GROUP }));
 });
 

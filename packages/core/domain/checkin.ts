@@ -55,6 +55,7 @@ export async function runCheckin(deps: CheckinDeps, input: CheckinInput): Promis
   if (!(await claim("running"))) return "noop";
 
   let attempts = 0;
+  const pause = () => deps.sleep(300 + deps.random() * 200);
 
   const work = async (): Promise<Outcome> => {
     if (
@@ -73,7 +74,7 @@ export async function runCheckin(deps: CheckinDeps, input: CheckinInput): Promis
         list = await listEvents(token, empresaId, classDate);
       } catch (err) {
         if (err instanceof TecnofitUnauthorized || err instanceof TecnofitInvalidResponse) throw err;
-        await deps.sleep(300 + deps.random() * 200);
+        await pause();
         if (now() > deadline) return failed("timeout");
       }
     }
@@ -112,7 +113,7 @@ export async function runCheckin(deps: CheckinDeps, input: CheckinInput): Promis
           }
         }
       }
-      await deps.sleep(300 + deps.random() * 200);
+      await pause();
     }
     return failed("timeout");
   };

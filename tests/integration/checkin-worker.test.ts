@@ -1,17 +1,15 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { CreateKeyCommand, KMSClient } from "@aws-sdk/client-kms";
-import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { KMSClient } from "@aws-sdk/client-kms";
 import { delay, http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, beforeAll, beforeEach, expect, it } from "vitest";
 import { encryptToken } from "../../packages/core/crypto/token.js";
-import { createEntities, type Entities } from "../../packages/core/db/entities.js";
+import type { Entities } from "../../packages/core/db/entities.js";
 import { runCheckin } from "../../packages/core/domain/checkin.js";
 import checkInFixture from "../fixtures/tecnofit/check-in.json";
 import eventDetail from "../fixtures/tecnofit/event-detail.json";
 import events from "../fixtures/tecnofit/events.json";
 import { fakeJwt } from "../fixtures/tecnofit/jwt.js";
-import { awsConfig, createMainTable, resetMoto } from "./setup/aws.js";
+import { awsConfig, createKey, createTestEntities, resetMoto } from "./setup/aws.js";
 
 const WOD = "https://rest.tecnofit.com.br/v2/161322/crossfit/wod/2026-10-21/programs";
 const DETAIL = `${WOD}/33548/calendar/events/587887`;
@@ -54,8 +52,8 @@ const server = setupServer(
 beforeAll(async () => {
   server.listen({ onUnhandledFrame: "bypass" });
   await resetMoto();
-  e = createEntities(DynamoDBDocumentClient.from(new DynamoDBClient(awsConfig)), await createMainTable());
-  keyId = (await kms.send(new CreateKeyCommand({}))).KeyMetadata!.KeyId!;
+  e = await createTestEntities();
+  keyId = await createKey(kms);
 });
 
 afterAll(() => server.close());

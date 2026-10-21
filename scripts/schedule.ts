@@ -1,10 +1,5 @@
 import { parseArgs } from "node:util";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { KMSClient } from "@aws-sdk/client-kms";
-import { SchedulerClient } from "@aws-sdk/client-scheduler";
-import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { decryptToken } from "@checkin/core/crypto/token";
-import { createEntities } from "@checkin/core/db/entities";
 import { addSchedule, ClassNotFound, listSchedules, removeSchedule } from "@checkin/core/domain/schedules";
 import { scheduleExpression, type ScheduleSpec } from "@checkin/core/domain/time";
 import { listEvents } from "@checkin/core/tecnofit/client";
@@ -43,17 +38,8 @@ if (!required || required.some((flag) => !values[flag as keyof typeof values])) 
 }
 const userId = values.user!;
 
-const env = await loadEnv();
-const entities = createEntities(DynamoDBDocumentClient.from(new DynamoDBClient({ region: env.region })), env.table);
-const kms = new KMSClient({ region: env.region });
-const deps = {
-  entities,
-  kms,
-  scheduler: new SchedulerClient({ region: env.region }),
-  group: env.group,
-  workerArn: env.workerArn,
-  roleArn: env.roleArn,
-};
+const deps = await loadEnv();
+const { entities, kms } = deps;
 
 async function accountOf() {
   const account = (await entities.account.query.byUser({ userId }).go({ limit: 1 })).data[0];

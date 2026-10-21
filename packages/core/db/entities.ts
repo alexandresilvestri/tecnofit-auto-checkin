@@ -1,8 +1,9 @@
 import type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { Entity } from "electrodb";
 
-export type ExecStatus =
-  "running" | "success" | "waitlisted" | "failed" | "skipped";
+const EXEC_STATUS = ["running", "success", "waitlisted", "failed", "skipped"] as const;
+
+export type ExecStatus = (typeof EXEC_STATUS)[number];
 
 const service = "checkin";
 
@@ -149,16 +150,7 @@ export function createEntities(client: DynamoDBDocumentClient, table: string) {
         scheduleId: { type: "string", required: true },
         classDate: { type: "string", required: true },
         userId: { type: "string", required: true },
-        status: {
-          type: [
-            "running",
-            "success",
-            "waitlisted",
-            "failed",
-            "skipped",
-          ] as const,
-          required: true,
-        },
+        status: { type: EXEC_STATUS, required: true },
         checkInId: { type: "string" },
         attempts: { type: "number", required: true },
         latencyMs: { type: "number" },

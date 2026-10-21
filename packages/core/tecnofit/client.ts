@@ -16,7 +16,7 @@ export class TecnofitError extends Error {
 
 export class TecnofitUnauthorized extends TecnofitError {
   constructor() {
-    super(401, "Tecnofit responded 401");
+    super(401);
     this.name = "TecnofitUnauthorized";
   }
 }

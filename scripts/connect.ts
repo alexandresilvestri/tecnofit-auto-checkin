@@ -1,9 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { KMSClient } from "@aws-sdk/client-kms";
-import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { encryptToken } from "@checkin/core/crypto/token";
-import { createEntities } from "@checkin/core/db/entities";
 import { getMe, login } from "@checkin/core/tecnofit/client";
 import { loadEnv } from "./env.js";
 
@@ -15,8 +11,7 @@ if (!email || !password) {
 }
 
 const env = await loadEnv();
-const entities = createEntities(DynamoDBDocumentClient.from(new DynamoDBClient({ region: env.region })), env.table);
-const kms = new KMSClient({ region: env.region });
+const { entities, kms } = env;
 
 const session = await login(email, password);
 const me = await getMe(session.token);

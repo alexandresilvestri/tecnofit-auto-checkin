@@ -1,7 +1,7 @@
-import { CreateKeyCommand, KMSClient } from "@aws-sdk/client-kms";
+import { KMSClient } from "@aws-sdk/client-kms";
 import { beforeAll, expect, it } from "vitest";
 import { decryptToken, encryptToken } from "../../packages/core/crypto/token.js";
-import { awsConfig, resetMoto } from "./setup/aws.js";
+import { awsConfig, createKey, resetMoto } from "./setup/aws.js";
 
 const kms = new KMSClient(awsConfig);
 const TOKEN = "eyJhbGciOiJIUzI1NiJ9.payload.signature";
@@ -9,8 +9,7 @@ let keyId: string;
 
 beforeAll(async () => {
   await resetMoto();
-  const out = await kms.send(new CreateKeyCommand({}));
-  keyId = out.KeyMetadata!.KeyId!;
+  keyId = await createKey(kms);
 });
 
 it("round-trips the token for the same user", async () => {
