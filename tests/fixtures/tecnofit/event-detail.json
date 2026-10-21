@@ -1,0 +1,11 @@
+{
+  "event": {
+    "id": 587887,
+    "classId": 33548,
+    "attendance": { "count": 5, "capacity": 20, "attendees": [] },
+    "checkIn": null,
+    "onTimeToCheckIn": true,
+    "onTimeToCancel": true,
+    "waitingListDateLimit": "2026-10-21 06:30:00"
+  }
+}

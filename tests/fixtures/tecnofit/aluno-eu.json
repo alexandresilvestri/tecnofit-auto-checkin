@@ -1,0 +1,11 @@
+{
+  "customer": {
+    "id": 28715453,
+    "name": "Aluno Teste",
+    "email": "aluno@example.com",
+    "companies": [
+      { "id": 23341, "name": "EFB Training Club", "customerStatus": "cancelled", "hasAccess": false },
+      { "id": 161322, "name": "BOX CF Bombinhas", "customerStatus": "active", "hasAccess": true }
+    ]
+  }
+}
