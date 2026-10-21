@@ -113,12 +113,20 @@ describe("listEvents", () => {
     await expect(listEvents("tok", 161322, "2026-10-21")).rejects.toBeInstanceOf(TecnofitInvalidResponse);
   });
 
-  it("cancels the body of an error response", async () => {
-    let canceled = false;
-    const body = new ReadableStream({ cancel: () => void (canceled = true) });
+  it("drains the body of an error response", async () => {
+    let drained = false;
+    const body = new ReadableStream(
+      {
+        pull: (c) => {
+          drained = true;
+          c.close();
+        },
+      },
+      { highWaterMark: 0 },
+    );
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(body, { status: 500 }));
     await expect(listEvents("tok", 161322, "2026-10-21")).rejects.toMatchObject({ status: 500 });
-    expect(canceled).toBe(true);
+    expect(drained).toBe(true);
   });
 
   it("propagates a body read failure unchanged", async () => {

@@ -43,7 +43,7 @@ async function request<S extends z.ZodType>(
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) {
-    await res.body?.cancel().catch(() => {});
+    await res.text().catch(() => {});
     throw res.status === 401 ? new TecnofitUnauthorized() : new TecnofitError(res.status);
   }
   const json = await res.json().catch((err) => {
