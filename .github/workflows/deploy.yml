@@ -45,3 +45,35 @@ jobs:
         uses: hashicorp/tfc-workflows-github/actions/apply-run@8e08d1ba957673f5fbf971a22b3219639dc45661 # v1.3.2
         with:
           run: ${{ steps.run.outputs.run_id }}
+      - name: Read web outputs
+        run: |
+          hcp() {
+            curl -sf -H "Authorization: Bearer $TF_API_TOKEN" -H "Content-Type: application/vnd.api+json" "https://app.terraform.io/api/v2/$1"
+          }
+          workspace_id=$(hcp "organizations/$TF_CLOUD_ORGANIZATION/workspaces/$TF_WORKSPACE" | jq -r .data.id)
+          output() {
+            jq -r --arg n "$1" '.data[] | select(.attributes.name==$n).attributes.value // empty' <<< "$outputs"
+          }
+          for _ in $(seq 10); do
+            outputs=$(hcp "workspaces/$workspace_id/current-state-version-outputs" || true)
+            web_bucket=$(output web_bucket) distribution_id=$(output distribution_id) web_url=$(output web_url)
+            if [ -n "$web_bucket" ] && [ -n "$distribution_id" ] && [ -n "$web_url" ]; then break; fi
+            sleep 10
+          done
+          test -n "$web_bucket" && test -n "$distribution_id" && test -n "$web_url"
+          {
+            echo "WEB_BUCKET=$web_bucket"
+            echo "DISTRIBUTION_ID=$distribution_id"
+            echo "WEB_URL=$web_url"
+          } >> "$GITHUB_ENV"
+      - run: npm run web:build
+      - run: aws s3 sync apps/web/dist "s3://$WEB_BUCKET" --delete --exclude index.html
+      - run: aws s3 cp apps/web/dist/index.html "s3://$WEB_BUCKET/index.html" --cache-control no-cache --content-type text/html
+      - run: aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/index.html"
+      - name: Smoke test
+        run: |
+          for _ in $(seq 10); do
+            curl -fsS "$WEB_URL/api/health" && exit 0
+            sleep 15
+          done
+          exit 1

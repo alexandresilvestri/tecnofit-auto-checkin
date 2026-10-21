@@ -1,5 +1,77 @@
 locals {
   worker_name = "checkin-${var.env}-checkin-worker"
+
+  api_functions = {
+    api-public = {
+      env = {
+        TABLE_MAIN  = var.main_table_name
+        TABLE_AUDIT = var.audit_table_name
+        KMS_KEY_ID  = var.token_key_arn
+      }
+      statements = [
+        {
+          Effect   = "Allow"
+          Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:ConditionCheckItem"]
+          Resource = [var.main_table_arn, "${var.main_table_arn}/index/*"]
+        },
+        {
+          Effect   = "Allow"
+          Action   = "dynamodb:PutItem"
+          Resource = var.audit_table_arn
+        },
+        {
+          Effect   = "Allow"
+          Action   = "kms:Encrypt"
+          Resource = var.token_key_arn
+          Condition = {
+            "ForAnyValue:StringEquals" = {
+              "kms:EncryptionContextKeys" = "userId"
+            }
+          }
+        }
+      ]
+    }
+    api-user = {
+      env = {
+        TABLE_MAIN  = var.main_table_name
+        TABLE_AUDIT = var.audit_table_name
+      }
+      statements = [
+        {
+          Effect   = "Allow"
+          Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query"]
+          Resource = var.main_table_arn
+        },
+        {
+          Effect   = "Allow"
+          Action   = "dynamodb:PutItem"
+          Resource = var.audit_table_arn
+        }
+      ]
+    }
+    authorizer-user = {
+      env = {
+        TABLE_MAIN  = var.main_table_name
+        TABLE_AUDIT = var.audit_table_name
+      }
+      statements = [
+        {
+          Effect   = "Allow"
+          Action   = "dynamodb:GetItem"
+          Resource = var.main_table_arn
+        }
+      ]
+    }
+  }
+
+  routes = {
+    "GET /api/health"         = "api-public"
+    "POST /api/invites/check" = "api-public"
+    "POST /api/onboarding"    = "api-public"
+    "POST /api/auth/login"    = "api-public"
+    "GET /api/me"             = "api-user"
+    "POST /api/auth/logout"   = "api-user"
+  }
 }
 
 # Logs hold only ids and statuses; AWS-managed encryption is enough.
@@ -68,11 +140,12 @@ resource "aws_lambda_function" "worker" {
   s3_bucket     = var.artifacts_bucket
   s3_key        = "${var.artifact_version}/checkin-worker.zip"
 
-  # Only the table name lives here; no secrets.
+  # Only table names live here; no secrets.
   # nosemgrep: terraform.aws.security.aws-lambda-environment-unencrypted.aws-lambda-environment-unencrypted
   environment {
     variables = {
-      TABLE_MAIN = var.main_table_name
+      TABLE_MAIN  = var.main_table_name
+      TABLE_AUDIT = var.audit_table_name
     }
   }
 
@@ -118,4 +191,144 @@ resource "aws_iam_role_policy" "scheduler" {
       Resource = aws_lambda_function.worker.arn
     }]
   })
+}
+
+# Logs hold only routes, statuses and error names; AWS-managed encryption is enough.
+# nosemgrep: terraform.aws.security.aws-cloudwatch-log-group-unencrypted.aws-cloudwatch-log-group-unencrypted
+resource "aws_cloudwatch_log_group" "api" {
+  for_each          = local.api_functions
+  name              = "/aws/lambda/checkin-${var.env}-${each.key}"
+  retention_in_days = 30
+}
+
+resource "aws_iam_role" "api" {
+  for_each = local.api_functions
+  name     = "checkin-${var.env}-${each.key}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "api" {
+  for_each = local.api_functions
+  name     = "checkin-${var.env}-${each.key}"
+  role     = aws_iam_role.api[each.key].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = concat([
+      {
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = "${aws_cloudwatch_log_group.api[each.key].arn}:*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["xray:PutTraceSegments", "xray:PutTelemetryRecords"]
+        Resource = "*"
+      }
+    ], each.value.statements)
+  })
+}
+
+resource "aws_lambda_function" "api" {
+  for_each      = local.api_functions
+  function_name = "checkin-${var.env}-${each.key}"
+  role          = aws_iam_role.api[each.key].arn
+  runtime       = "nodejs24.x"
+  handler       = "index.handler"
+  timeout       = 15
+  memory_size   = 256
+  s3_bucket     = var.artifacts_bucket
+  s3_key        = "${var.artifact_version}/${each.key}.zip"
+
+  # Only table names and the KMS key ARN live here; no secrets.
+  # nosemgrep: terraform.aws.security.aws-lambda-environment-unencrypted.aws-lambda-environment-unencrypted
+  environment {
+    variables = each.value.env
+  }
+
+  tracing_config {
+    mode = "Active"
+  }
+
+  depends_on = [aws_cloudwatch_log_group.api, aws_iam_role_policy.api]
+}
+
+resource "aws_apigatewayv2_api" "this" {
+  name          = "checkin-${var.env}-api"
+  protocol_type = "HTTP"
+}
+
+resource "aws_apigatewayv2_integration" "api" {
+  for_each               = toset(values(local.routes))
+  api_id                 = aws_apigatewayv2_api.this.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.api[each.key].invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_authorizer" "user" {
+  api_id                            = aws_apigatewayv2_api.this.id
+  name                              = "checkin-${var.env}-authorizer-user"
+  authorizer_type                   = "REQUEST"
+  authorizer_uri                    = aws_lambda_function.api["authorizer-user"].invoke_arn
+  authorizer_payload_format_version = "2.0"
+  enable_simple_responses           = true
+  identity_sources                  = ["$request.header.Cookie"]
+  authorizer_result_ttl_in_seconds  = 60
+}
+
+resource "aws_apigatewayv2_route" "api" {
+  for_each           = local.routes
+  api_id             = aws_apigatewayv2_api.this.id
+  route_key          = each.key
+  target             = "integrations/${aws_apigatewayv2_integration.api[each.value].id}"
+  authorization_type = each.value == "api-user" ? "CUSTOM" : "NONE"
+  authorizer_id      = each.value == "api-user" ? aws_apigatewayv2_authorizer.user.id : null
+}
+
+resource "aws_apigatewayv2_stage" "default" {
+  api_id      = aws_apigatewayv2_api.this.id
+  name        = "$default"
+  auto_deploy = true
+
+  default_route_settings {
+    throttling_rate_limit  = 20
+    throttling_burst_limit = 40
+  }
+
+  dynamic "route_settings" {
+    for_each = toset(["POST /api/invites/check", "POST /api/onboarding", "POST /api/auth/login"])
+    content {
+      route_key              = route_settings.value
+      throttling_rate_limit  = 5
+      throttling_burst_limit = 10
+    }
+  }
+
+  depends_on = [aws_apigatewayv2_route.api]
+}
+
+resource "aws_lambda_permission" "api" {
+  for_each      = aws_apigatewayv2_integration.api
+  statement_id  = "AllowApiGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.api[each.key].function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.this.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "authorizer" {
+  statement_id  = "AllowApiGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.api["authorizer-user"].function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.this.execution_arn}/authorizers/${aws_apigatewayv2_authorizer.user.id}"
 }

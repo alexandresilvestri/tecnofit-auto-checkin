@@ -21,3 +21,11 @@ variable "main_table_arn" {
 variable "token_key_arn" {
   type = string
 }
+
+variable "audit_table_name" {
+  type = string
+}
+
+variable "audit_table_arn" {
+  type = string
+}

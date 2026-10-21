@@ -10,7 +10,7 @@ const logger = new Logger({ serviceName: "checkin-worker" });
 const kms = new KMSClient({});
 const entities = createEntities(
   DynamoDBDocumentClient.from(new DynamoDBClient({})),
-  process.env.TABLE_MAIN!,
+  { main: process.env.TABLE_MAIN!, audit: process.env.TABLE_AUDIT! },
 );
 
 const eventSchema = z.object({

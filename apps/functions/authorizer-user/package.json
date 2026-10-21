@@ -1,0 +1,10 @@
+{
+  "name": "@checkin/authorizer-user",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.1154.0",
+    "@aws-sdk/lib-dynamodb": "3.1154.0",
+    "@checkin/core": "*"
+  }
+}
