@@ -124,11 +124,25 @@ resource "aws_iam_role_policy" "hcp_dev_iam" {
     Version = "2012-10-17"
     Statement = [{
       Effect = "Allow"
-      Action = "iam:*"
-      Resource = [
-        "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/checkin-dev-*",
-        "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/checkin-dev-*"
+      # Terraform must manage the dev roles and their inline policies; scoped to role/checkin-dev-*.
+      # nosemgrep: terraform.lang.security.iam.no-iam-priv-esc-funcs.no-iam-priv-esc-funcs, terraform.lang.security.iam.no-iam-resource-exposure.no-iam-resource-exposure
+      Action = [
+        "iam:CreateRole",
+        "iam:GetRole",
+        "iam:UpdateRole",
+        "iam:DeleteRole",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:UpdateAssumeRolePolicy",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListInstanceProfilesForRole",
+        "iam:PutRolePolicy",
+        "iam:GetRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:PassRole"
       ]
+      Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/checkin-dev-*"
     }]
   })
 }

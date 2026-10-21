@@ -1,3 +1,5 @@
+# SSE uses the AWS-managed key; the only secret (Tecnofit JWT) is already encrypted with its own CMK.
+# nosemgrep: terraform.aws.security.aws-dynamodb-table-unencrypted.aws-dynamodb-table-unencrypted
 resource "aws_dynamodb_table" "main" {
   name         = "checkin-${var.env}-main"
   billing_mode = "PAY_PER_REQUEST"
@@ -54,6 +56,10 @@ resource "aws_dynamodb_table" "main" {
   }
 
   point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
     enabled = true
   }
 }

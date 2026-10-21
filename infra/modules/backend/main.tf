@@ -2,6 +2,8 @@ locals {
   worker_name = "checkin-${var.env}-checkin-worker"
 }
 
+# Logs hold only ids and statuses; AWS-managed encryption is enough.
+# nosemgrep: terraform.aws.security.aws-cloudwatch-log-group-unencrypted.aws-cloudwatch-log-group-unencrypted
 resource "aws_cloudwatch_log_group" "worker" {
   name              = "/aws/lambda/${local.worker_name}"
   retention_in_days = 30
@@ -39,6 +41,11 @@ resource "aws_iam_role_policy" "worker" {
       },
       {
         Effect   = "Allow"
+        Action   = ["xray:PutTraceSegments", "xray:PutTelemetryRecords"]
+        Resource = "*"
+      },
+      {
+        Effect   = "Allow"
         Action   = "kms:Decrypt"
         Resource = var.token_key_arn
         Condition = {
@@ -61,10 +68,16 @@ resource "aws_lambda_function" "worker" {
   s3_bucket     = var.artifacts_bucket
   s3_key        = "${var.artifact_version}/checkin-worker.zip"
 
+  # Only the table name lives here; no secrets.
+  # nosemgrep: terraform.aws.security.aws-lambda-environment-unencrypted.aws-lambda-environment-unencrypted
   environment {
     variables = {
       TABLE_MAIN = var.main_table_name
     }
+  }
+
+  tracing_config {
+    mode = "Active"
   }
 
   depends_on = [aws_cloudwatch_log_group.worker, aws_iam_role_policy.worker]

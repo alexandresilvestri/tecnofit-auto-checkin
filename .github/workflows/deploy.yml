@@ -19,12 +19,12 @@ jobs:
       TF_WORKSPACE: checkin-dev
       ARTIFACTS_BUCKET: ${{ vars.ARTIFACTS_BUCKET }}
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-node@v7.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
-      - uses: aws-actions/configure-aws-credentials@v6.3.0
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: sa-east-1
@@ -32,16 +32,16 @@ jobs:
       - run: aws s3 cp dist/functions "s3://$ARTIFACTS_BUCKET/$GITHUB_SHA/" --recursive --exclude "*" --include "*.zip"
       - run: echo "artifact_version = \"$GITHUB_SHA\"" > infra/envs/dev/artifact.auto.tfvars
       - id: upload
-        uses: hashicorp/tfc-workflows-github/actions/upload-configuration@v1.3.2
+        uses: hashicorp/tfc-workflows-github/actions/upload-configuration@8e08d1ba957673f5fbf971a22b3219639dc45661 # v1.3.2
         with:
           workspace: ${{ env.TF_WORKSPACE }}
           directory: infra
       - id: run
-        uses: hashicorp/tfc-workflows-github/actions/create-run@v1.3.2
+        uses: hashicorp/tfc-workflows-github/actions/create-run@8e08d1ba957673f5fbf971a22b3219639dc45661 # v1.3.2
         with:
           workspace: ${{ env.TF_WORKSPACE }}
           configuration_version: ${{ steps.upload.outputs.configuration_version_id }}
       - if: fromJSON(steps.run.outputs.payload).data.attributes.actions.IsConfirmable
-        uses: hashicorp/tfc-workflows-github/actions/apply-run@v1.3.2
+        uses: hashicorp/tfc-workflows-github/actions/apply-run@8e08d1ba957673f5fbf971a22b3219639dc45661 # v1.3.2
         with:
           run: ${{ steps.run.outputs.run_id }}
