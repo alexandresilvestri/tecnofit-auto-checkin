@@ -43,6 +43,18 @@ jobs:
       - run: terraform init -backend=false && terraform validate
         working-directory: infra/bootstrap
 
+  semgrep:
+    runs-on: ubuntu-latest
+    container: semgrep/semgrep:1.182.0
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: semgrep scan --config auto --error --json-output=semgrep.json
+      - if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: semgrep
+          path: semgrep.json
+
   plan:
     needs: [check, terraform]
     runs-on: ubuntu-latest
