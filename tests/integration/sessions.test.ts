@@ -164,10 +164,10 @@ it("keeps the lockout window anchored at the first failure", async () => {
 it("touches a session only after 24 hours, resolves and revokes it", async () => {
   const token = await createSession(e, "u_touch", META, NOW);
   const sessionId = hashSecret(token);
-  expect(await resolveSession(e, token)).toEqual({ userId: "u_touch", sessionId, lastSeenAt: new Date(NOW).toISOString() });
+  expect(await resolveSession(e, token)).toEqual({ userId: "u_touch", sessionId });
   expect(await touchSession(e, sessionId, NOW + 24 * 3600_000)).toBe(false);
   expect(await touchSession(e, sessionId, NOW + 24 * 3600_000 + 1)).toBe(true);
-  expect((await resolveSession(e, token))?.lastSeenAt).toBe(new Date(NOW + 24 * 3600_000 + 1).toISOString());
+  expect((await e.session.get({ sessionId }).go()).data?.lastSeenAt).toBe(new Date(NOW + 24 * 3600_000 + 1).toISOString());
   expect(await touchSession(e, sessionId, NOW + 24 * 3600_000 + 2)).toBe(false);
   await revokeSession(e, token);
   expect(await resolveSession(e, token)).toBeNull();

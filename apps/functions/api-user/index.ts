@@ -3,7 +3,8 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { writeAudit } from "@checkin/core/audit/audit";
 import { createEntities } from "@checkin/core/db/entities";
-import { revokeSession, touchSession } from "@checkin/core/domain/sessions";
+import { requestMeta } from "@checkin/core/domain/invites";
+import { SESSION_COOKIE, revokeSession, touchSession } from "@checkin/core/domain/sessions";
 import { handle } from "@hono/aws-lambda";
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
@@ -44,18 +45,17 @@ app.onError((err, c) => {
 
 const session = (c: Context<Env>) => c.env.event.requestContext.authorizer.lambda;
 
-const cookieOptions = { httpOnly: true, secure: true, sameSite: "Strict", path: "/api" } as const;
-
 app.get("/api/me", async (c) => {
   const { userId, sessionId } = session(c);
-  const { data: profile } = await entities.profile.get({ userId }).go();
+  const [{ data: profile }, accounts] = await Promise.all([
+    entities.profile.get({ userId }).go(),
+    entities.account.query.byUser({ userId }).go({ limit: 1 }),
+  ]);
   if (!profile) return c.json({ message: "Sessão inválida." }, 401);
-  const {
-    data: [account],
-  } = await entities.account.query.byUser({ userId }).go({ limit: 1 });
+  const [account] = accounts.data;
   const token = getCookie(c, "sid");
   if (token && (await touchSession(entities, sessionId, Date.now())))
-    setCookie(c, "sid", token, { ...cookieOptions, maxAge: 34560000 });
+    setCookie(c, "sid", token, SESSION_COOKIE);
   return c.json({ name: profile.name, boxName: account?.boxName, accountStatus: account?.status });
 });
 
@@ -64,13 +64,18 @@ app.post("/api/auth/logout", async (c) => {
   const token = getCookie(c, "sid");
   if (token) await revokeSession(entities, token);
   const { sourceIp, userAgent } = c.env.event.requestContext.http;
-  const ip = c.req.header("cloudfront-viewer-address")?.replace(/:[^:]*$/, "") ?? sourceIp;
   await writeAudit(
     entities,
-    { actorType: "user", actorId: userId, action: "user.logout", result: "success", ip, userAgent },
+    {
+      actorType: "user",
+      actorId: userId,
+      action: "user.logout",
+      result: "success",
+      ...requestMeta(c.req.header("cloudfront-viewer-address"), sourceIp, userAgent),
+    },
     Date.now(),
   );
-  deleteCookie(c, "sid", cookieOptions);
+  deleteCookie(c, "sid", { ...SESSION_COOKIE, maxAge: 0 });
   return c.body(null, 204);
 });
 

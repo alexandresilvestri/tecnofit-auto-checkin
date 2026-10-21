@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { encryptToken } from "@checkin/core/crypto/token";
+import { normalizeEmail } from "@checkin/core/domain/sessions";
 import { getMe, login } from "@checkin/core/tecnofit/client";
 import { loadEnv } from "./env.js";
 
-const email = process.env.TECNOFIT_EMAIL?.trim().toLowerCase();
+const email = process.env.TECNOFIT_EMAIL && normalizeEmail(process.env.TECNOFIT_EMAIL);
 const password = process.env.TECNOFIT_PASSWORD;
 if (!email || !password) {
   console.error("Set TECNOFIT_EMAIL and TECNOFIT_PASSWORD");

@@ -4,11 +4,17 @@ import { writeAudit } from "../audit/audit.js";
 import { hashSecret, newSecret } from "../crypto/secret.js";
 import { encryptToken } from "../crypto/token.js";
 import { isConditionalFailure, type Entities } from "../db/entities.js";
-import { getMe, login, TecnofitError } from "../tecnofit/client.js";
+import { getMe, isCredentialRejection, login } from "../tecnofit/client.js";
+import { normalizeEmail } from "./sessions.js";
 
 export type PublicDeps = { entities: Entities; kms: KMSClient; keyId: string; now: () => number };
 
 export type RequestMeta = { ip: string; userAgent: string };
+
+export const requestMeta = (viewerAddress: string | undefined, sourceIp: string, userAgent: string): RequestMeta => ({
+  ip: viewerAddress?.replace(/:[^:]*$/, "") ?? sourceIp,
+  userAgent,
+});
 
 export class InviteInvalid extends Error {
   constructor() {
@@ -93,7 +99,7 @@ export async function redeemInvite(
     );
   const anonymous = { actorType: "anonymous", actorId: "anonymous", result: "denied" } as const;
   const denied = (reason: string) => audit({ ...anonymous, action: "invite.redeem_failed", metadata: { reason } });
-  const email = input.email.trim().toLowerCase();
+  const email = normalizeEmail(input.email);
 
   if (!(await isPending(deps, inviteId))) {
     await denied("invalid_invite");
@@ -106,7 +112,7 @@ export async function redeemInvite(
   }
 
   const tecnofit = await login(email, input.password).catch(async (err: unknown) => {
-    if (!(err instanceof TecnofitError && err.status >= 400 && err.status < 500)) throw err;
+    if (!isCredentialRejection(err)) throw err;
     const { data } = await entities.invite.patch({ inviteId }).add({ attempts: 1 }).go({ response: "all_new" });
     if (data.attempts >= MAX_ATTEMPTS) {
       const burned = await entities.invite
@@ -123,9 +129,11 @@ export async function redeemInvite(
     throw new InvalidCredentials();
   });
 
-  const me = await getMe(tecnofit.token);
   const userId = `u_${randomUUID()}`;
-  const tokenEnc = await encryptToken(deps.kms, deps.keyId, userId, tecnofit.token);
+  const [me, tokenEnc] = await Promise.all([
+    getMe(tecnofit.token),
+    encryptToken(deps.kms, deps.keyId, userId, tecnofit.token),
+  ]);
   const sessionSecret = newSecret();
   const redeemedAt = now();
   const at = new Date(redeemedAt).toISOString();

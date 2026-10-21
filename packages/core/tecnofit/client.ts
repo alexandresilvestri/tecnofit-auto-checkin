@@ -21,6 +21,9 @@ export class TecnofitUnauthorized extends TecnofitError {
   }
 }
 
+export const isCredentialRejection = (err: unknown): boolean =>
+  err instanceof TecnofitError && err.status >= 400 && err.status < 500;
+
 export class TecnofitInvalidResponse extends Error {
   constructor(message = "Invalid Tecnofit response") {
     super(message);
@@ -41,6 +44,8 @@ async function request<S extends z.ZodType>(
     headers,
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
     signal: AbortSignal.timeout(TIMEOUT_MS),
+  }).catch(() => {
+    throw new TecnofitError(503, "Tecnofit unreachable");
   });
   if (!res.ok) {
     await res.text().catch(() => {});

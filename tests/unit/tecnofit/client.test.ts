@@ -143,7 +143,7 @@ describe("listEvents", () => {
         return HttpResponse.json(events);
       }),
     );
-    await expect(listEvents("tok", 161322, "2026-10-21")).rejects.toMatchObject({ name: "TimeoutError" });
+    await expect(listEvents("tok", 161322, "2026-10-21")).rejects.toMatchObject({ name: "TecnofitError", status: 503 });
   });
 });
 

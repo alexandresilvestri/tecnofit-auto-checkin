@@ -3,8 +3,8 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { KMSClient } from "@aws-sdk/client-kms";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { createEntities } from "@checkin/core/db/entities";
-import { AccountExists, InvalidCredentials, InviteInvalid, checkInvite, redeemInvite } from "@checkin/core/domain/invites";
-import { LoginLocked, loginUser } from "@checkin/core/domain/sessions";
+import { AccountExists, InvalidCredentials, InviteInvalid, checkInvite, redeemInvite, requestMeta } from "@checkin/core/domain/invites";
+import { LoginLocked, SESSION_COOKIE, loginUser } from "@checkin/core/domain/sessions";
 import { TecnofitError, TecnofitInvalidResponse } from "@checkin/core/tecnofit/client";
 import { handle } from "@hono/aws-lambda";
 import { Hono } from "hono";
@@ -44,12 +44,7 @@ const mapError = (err: unknown): [400 | 401 | 409 | 410 | 429 | 500 | 502, strin
   if (err instanceof AccountExists) return [409, "Esta conta já está cadastrada. Faça login."];
   if (err instanceof InvalidCredentials) return [401, "E-mail ou senha inválidos."];
   if (err instanceof LoginLocked) return [429, "Muitas tentativas. Tente novamente em 15 minutos."];
-  if (
-    (err instanceof TecnofitError && err.status >= 500) ||
-    err instanceof TecnofitInvalidResponse ||
-    (err instanceof Error && ["TimeoutError", "AbortError"].includes(err.name)) ||
-    (err instanceof TypeError && err.message === "fetch failed")
-  )
+  if ((err instanceof TecnofitError && err.status >= 500) || err instanceof TecnofitInvalidResponse)
     return [502, "Tecnofit indisponível. Tente novamente em instantes."];
   return [500, "Erro inesperado."];
 };
@@ -78,17 +73,11 @@ const parse = async <S extends z.ZodType>(c: Context<Env>, schema: S) => {
 
 const meta = (c: Context<Env>) => {
   const { sourceIp, userAgent } = c.env.event.requestContext.http;
-  return { ip: c.req.header("cloudfront-viewer-address")?.replace(/:[^:]*$/, "") ?? sourceIp, userAgent };
+  return requestMeta(c.req.header("cloudfront-viewer-address"), sourceIp, userAgent);
 };
 
 const setSession = (c: Context<Env>, token: string) =>
-  setCookie(c, "sid", token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "Strict",
-    path: "/api",
-    maxAge: 34560000,
-  });
+  setCookie(c, "sid", token, SESSION_COOKIE);
 
 app.get("/api/health", (c) => c.json({ ok: true }));
 

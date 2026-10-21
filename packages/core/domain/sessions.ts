@@ -2,7 +2,7 @@ import { writeAudit } from "../audit/audit.js";
 import { hashSecret, newSecret } from "../crypto/secret.js";
 import { encryptToken } from "../crypto/token.js";
 import { isConditionalFailure, type Entities } from "../db/entities.js";
-import { login, TecnofitError } from "../tecnofit/client.js";
+import { isCredentialRejection, login } from "../tecnofit/client.js";
 import { InvalidCredentials, type PublicDeps, type RequestMeta } from "./invites.js";
 
 export class LoginLocked extends Error {
@@ -11,6 +11,16 @@ export class LoginLocked extends Error {
     this.name = "LoginLocked";
   }
 }
+
+export const SESSION_COOKIE = {
+  httpOnly: true,
+  secure: true,
+  sameSite: "Strict",
+  path: "/api",
+  maxAge: 34560000,
+} as const;
+
+export const normalizeEmail = (email: string): string => email.trim().toLowerCase();
 
 const MAX_FAILURES = 5;
 const LOCK_SECONDS = 15 * 60;
@@ -28,9 +38,9 @@ export async function createSession(entities: Entities, userId: string, meta: Re
 export async function resolveSession(
   entities: Entities,
   token: string,
-): Promise<{ userId: string; sessionId: string; lastSeenAt: string } | null> {
+): Promise<{ userId: string; sessionId: string } | null> {
   const { data } = await entities.session.get({ sessionId: hashSecret(token) }).go();
-  return data && { userId: data.userId, sessionId: data.sessionId, lastSeenAt: data.lastSeenAt };
+  return data && { userId: data.userId, sessionId: data.sessionId };
 }
 
 export async function touchSession(entities: Entities, sessionId: string, now: number): Promise<boolean> {
@@ -57,7 +67,7 @@ export async function loginUser(
   meta: RequestMeta,
 ): Promise<{ userId: string; sessionToken: string }> {
   const { entities, now } = deps;
-  const email = input.email.trim().toLowerCase();
+  const email = normalizeEmail(input.email);
   const audit = (
     event: Pick<Parameters<typeof writeAudit>[1], "actorType" | "actorId" | "action" | "result" | "targetId">,
   ) => writeAudit(entities, { ...event, targetType: "user", ip: meta.ip, userAgent: meta.userAgent }, now());
@@ -86,18 +96,20 @@ export async function loginUser(
   if (!profile || profile.status === "suspended") return failed(profile?.userId);
 
   const tecnofit = await login(email, input.password).catch((err: unknown) => {
-    if (!(err instanceof TecnofitError && err.status >= 400 && err.status < 500)) throw err;
+    if (!isCredentialRejection(err)) throw err;
     return failed(profile.userId);
   });
 
   const { userId } = profile;
   const tokenEnc = await encryptToken(deps.kms, deps.keyId, userId, tecnofit.token);
-  await entities.account
-    .patch({ userId, empresaId: String(tecnofit.empresaId) })
-    .set({ tokenEnc, tokenExp: tecnofit.exp, status: "ok" })
-    .go();
-  const sessionToken = await createSession(entities, userId, meta, now());
-  await entities.loginFail.delete({ email }).go();
+  const [, sessionToken] = await Promise.all([
+    entities.account
+      .patch({ userId, empresaId: String(tecnofit.empresaId) })
+      .set({ tokenEnc, tokenExp: tecnofit.exp, status: "ok" })
+      .go(),
+    createSession(entities, userId, meta, now()),
+    entities.loginFail.delete({ email }).go(),
+  ]);
   await audit({ actorType: "user", actorId: userId, action: "user.login", result: "success", targetId: userId });
   return { userId, sessionToken };
 }

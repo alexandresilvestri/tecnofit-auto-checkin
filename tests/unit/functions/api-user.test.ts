@@ -96,6 +96,7 @@ it("me reissues the exact session cookie when touchSession is true", async () =>
 
 it("me returns 401 when the profile is missing", async () => {
   ddb.on(GetCommand).resolves({});
+  ddb.on(QueryCommand).resolves({ Items: [] });
   const res = await send("GET", "/api/me", {});
   expect(res.statusCode).toBe(401);
   expect(JSON.parse(res.body)).toEqual({ message: "Sessão inválida." });

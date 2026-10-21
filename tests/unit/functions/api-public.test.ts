@@ -128,7 +128,6 @@ it.each([
   ["LoginLocked", () => new errors.LoginLocked(), 429, "Muitas tentativas. Tente novamente em 15 minutos."],
   ["Tecnofit 503", () => new tecnofit.TecnofitError(503), 502, "Tecnofit indisponível. Tente novamente em instantes."],
   ["TecnofitInvalidResponse", () => new tecnofit.TecnofitInvalidResponse(), 502, "Tecnofit indisponível. Tente novamente em instantes."],
-  ["fetch failed", () => new TypeError("fetch failed"), 502, "Tecnofit indisponível. Tente novamente em instantes."],
   ["unknown", () => new Error("boom"), 500, "Erro inesperado."],
 ])("login maps %s", async (_n, make, status, message) => {
   sessions.loginUser.mockRejectedValue(make());
