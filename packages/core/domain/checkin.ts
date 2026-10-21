@@ -1,7 +1,14 @@
 import type { KMSClient } from "@aws-sdk/client-kms";
 import { decryptToken } from "../crypto/token.js";
 import { isConditionalFailure, type Entities, type ExecStatus } from "../db/entities.js";
-import { checkIn, getEvent, listEvents, TecnofitInvalidResponse, TecnofitUnauthorized } from "../tecnofit/client.js";
+import {
+  checkIn,
+  getEvent,
+  listEvents,
+  TecnofitInvalidResponse,
+  TecnofitUnauthorized,
+  type TecnofitEvent,
+} from "../tecnofit/client.js";
 import { classSlotFor } from "./time.js";
 
 export type CheckinInput = { userId: string; scheduleId: string; scheduledTime: string };
@@ -50,18 +57,30 @@ export async function runCheckin(deps: CheckinDeps, input: CheckinInput): Promis
   let attempts = 0;
 
   const work = async (): Promise<Outcome> => {
-    if (time !== schedule.startTime || (schedule.kind === "once" && classDate !== schedule.date)) {
+    if (
+      time !== schedule.startTime ||
+      (schedule.kind === "once" && classDate !== schedule.date) ||
+      (schedule.kind === "weekly" && !schedule.weekdays?.includes(new Date(classDate).getUTCDay()))
+    ) {
       return failed("window_mismatch");
     }
     const token = await decryptToken(deps.kms, userId, account.tokenEnc);
     const empresaId = Number(schedule.empresaId);
-    const event = (await listEvents(token, empresaId, classDate)).find(
-      (e) => e.name === schedule.className && e.start === `${classDate} ${schedule.startTime}`,
-    );
+    const deadline = now() + 90_000;
+    let list: TecnofitEvent[] | undefined;
+    while (!list) {
+      try {
+        list = await listEvents(token, empresaId, classDate);
+      } catch (err) {
+        if (err instanceof TecnofitUnauthorized || err instanceof TecnofitInvalidResponse) throw err;
+        await deps.sleep(300 + deps.random() * 200);
+        if (now() > deadline) return failed("timeout");
+      }
+    }
+    const event = list.find((e) => e.name === schedule.className && e.start === `${classDate} ${schedule.startTime}`);
     if (!event) return failed("class_not_found");
     if (event.checkInId !== null) return { status: "success", checkInId: String(event.checkInId) };
 
-    const deadline = now() + 90_000;
     let waitingList = false;
     let lastDetail = -Infinity;
     while (now() <= deadline) {

@@ -72,6 +72,7 @@ beforeEach(() => {
 type ScheduleOverrides = Partial<{
   kind: "weekly" | "once";
   date: string;
+  weekdays: number[];
   allowWaitingList: boolean;
 }>;
 
@@ -185,6 +186,23 @@ it("marks the account for reconnect on 401", async () => {
   expect((await e.account.get({ userId: input.userId, empresaId: "161322" }).go()).data?.status).toBe("reconnect");
 });
 
+it("retries the class list after a 500", async () => {
+  const input = await seed();
+  eventsReply = () => (lists === 1 ? new HttpResponse(null, { status: 500 }) : HttpResponse.json(events));
+  expect(await run(input)).toBe("success");
+  expect(await exec(input.scheduleId)).toMatchObject({ status: "success", attempts: 1 });
+  expect(lists).toBe(2);
+});
+
+it("times out when the class list keeps failing", async () => {
+  const input = await seed();
+  eventsReply = () => new HttpResponse(null, { status: 503 });
+  expect(await run(input)).toBe("failed");
+  expect(await exec(input.scheduleId)).toMatchObject({ status: "failed", error: "timeout", attempts: 0 });
+  expect(lists).toBeGreaterThan(150);
+  expect(posts).toHaveLength(0);
+});
+
 it("marks the account for reconnect on 401 from the class list", async () => {
   const input = await seed();
   eventsReply = () => new HttpResponse(null, { status: 401 });
@@ -249,6 +267,13 @@ it("fails on malformed events", async () => {
 it("rejects a scheduledTime one hour early", async () => {
   const input = { ...(await seed()), scheduledTime: "2026-10-20T21:01:00Z" };
   expect(await run(input, Date.parse(input.scheduledTime))).toBe("failed");
+  expect(await exec(input.scheduleId)).toMatchObject({ status: "failed", error: "window_mismatch" });
+  expect(lists).toBe(0);
+});
+
+it("rejects a weekly schedule invoked on another weekday", async () => {
+  const input = await seed({ weekdays: [1, 5] });
+  expect(await run(input)).toBe("failed");
   expect(await exec(input.scheduleId)).toMatchObject({ status: "failed", error: "window_mismatch" });
   expect(lists).toBe(0);
 });

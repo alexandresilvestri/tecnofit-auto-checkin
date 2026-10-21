@@ -42,10 +42,13 @@ async function request<S extends z.ZodType>(
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
-  if (res.status === 401) throw new TecnofitUnauthorized();
-  if (!res.ok) throw new TecnofitError(res.status);
-  const json = await res.json().catch(() => {
-    throw new TecnofitInvalidResponse("Tecnofit body is not JSON");
+  if (!res.ok) {
+    await res.body?.cancel().catch(() => {});
+    throw res.status === 401 ? new TecnofitUnauthorized() : new TecnofitError(res.status);
+  }
+  const json = await res.json().catch((err) => {
+    if (err instanceof SyntaxError) throw new TecnofitInvalidResponse("Tecnofit body is not JSON");
+    throw err;
   });
   const parsed = schema.safeParse(json);
   if (!parsed.success) throw new TecnofitInvalidResponse(parsed.error.message);

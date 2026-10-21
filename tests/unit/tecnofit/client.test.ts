@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { delay, http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import {
@@ -25,7 +25,10 @@ const EVENT_PATH = `${HOST}/v2/161322/crossfit/wod/2026-10-21/programs/33548/cal
 const server = setupServer();
 
 beforeAll(() => server.listen({ onUnhandledFrame: "bypass" }));
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  server.resetHandlers();
+  vi.restoreAllMocks();
+});
 afterAll(() => server.close());
 
 describe("login", () => {
@@ -108,6 +111,21 @@ describe("listEvents", () => {
   it("rejects a non-JSON body", async () => {
     server.use(http.get(EVENTS_PATH, () => new HttpResponse("<html>", { status: 200 })));
     await expect(listEvents("tok", 161322, "2026-10-21")).rejects.toBeInstanceOf(TecnofitInvalidResponse);
+  });
+
+  it("cancels the body of an error response", async () => {
+    let canceled = false;
+    const body = new ReadableStream({ cancel: () => void (canceled = true) });
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(body, { status: 500 }));
+    await expect(listEvents("tok", 161322, "2026-10-21")).rejects.toMatchObject({ status: 500 });
+    expect(canceled).toBe(true);
+  });
+
+  it("propagates a body read failure unchanged", async () => {
+    const reset = new Error("socket reset");
+    const body = new ReadableStream({ start: (c) => c.error(reset) });
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(body));
+    await expect(listEvents("tok", 161322, "2026-10-21")).rejects.toBe(reset);
   });
 
   it("rejects by timeout when the response is slow", { timeout: 10000 }, async () => {
