@@ -26,11 +26,28 @@ resource "aws_iam_role_policy" "worker" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
-      Resource = "${aws_cloudwatch_log_group.worker.arn}:*"
-    }]
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = "${aws_cloudwatch_log_group.worker.arn}:*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query"]
+        Resource = [var.main_table_arn, "${var.main_table_arn}/index/*"]
+      },
+      {
+        Effect   = "Allow"
+        Action   = "kms:Decrypt"
+        Resource = var.token_key_arn
+        Condition = {
+          "ForAnyValue:StringEquals" = {
+            "kms:EncryptionContextKeys" = "userId"
+          }
+        }
+      }
+    ]
   })
 }
 
@@ -43,6 +60,12 @@ resource "aws_lambda_function" "worker" {
   memory_size   = 256
   s3_bucket     = var.artifacts_bucket
   s3_key        = "${var.artifact_version}/checkin-worker.zip"
+
+  environment {
+    variables = {
+      TABLE_MAIN = var.main_table_name
+    }
+  }
 
   depends_on = [aws_cloudwatch_log_group.worker, aws_iam_role_policy.worker]
 }
