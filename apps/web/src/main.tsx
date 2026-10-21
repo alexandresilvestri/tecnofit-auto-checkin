@@ -5,6 +5,7 @@ import { Login } from "./pages/Login";
 import "./styles.css";
 
 const pages: Record<string, () => React.JSX.Element> = {
+  "/": Home,
   "/convite": Invite,
   "/app": Home,
 };

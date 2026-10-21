@@ -21,7 +21,9 @@ export function Home() {
       await post("/api/auth/logout");
       location.assign("/login");
     } catch (e) {
-      setError(errorMessage(e));
+      const { status } = e as ApiError;
+      if (status === 401 || status === 403) location.assign("/login");
+      else setError(errorMessage(e));
     }
   }
 

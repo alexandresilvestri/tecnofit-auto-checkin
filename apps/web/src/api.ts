@@ -17,7 +17,12 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
     const message = (body as { message?: unknown } | undefined)?.message;
     const error: ApiError = {
       status: response.status,
-      message: typeof message === "string" ? message : "Erro inesperado.",
+      message:
+        response.status === 429 && message === "Too Many Requests"
+          ? "Muitas tentativas. Tente novamente em instantes."
+          : typeof message === "string"
+            ? message
+            : "Erro inesperado.",
     };
     throw error;
   }
