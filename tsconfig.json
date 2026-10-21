@@ -7,5 +7,6 @@
     "moduleResolution": "bundler",
     "types": ["node"]
   },
-  "include": ["apps", "packages", "tests", "scripts", "vitest.config.ts"]
+  "include": ["apps", "packages", "tests", "scripts", "vitest.config.ts"],
+  "exclude": ["apps/web"]
 }

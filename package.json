@@ -7,17 +7,20 @@
   },
   "workspaces": [
     "packages/*",
-    "apps/functions/*"
+    "apps/functions/*",
+    "apps/web"
   ],
   "scripts": {
     "lint": "eslint .",
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p apps/web/tsconfig.json",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "build": "node scripts/build-functions.mjs",
     "moto:up": "docker compose -f tests/docker-compose.yml up -d",
     "connect": "tsx scripts/connect.ts",
-    "schedule": "tsx scripts/schedule.ts"
+    "schedule": "tsx scripts/schedule.ts",
+    "web:dev": "npm -w apps/web run dev",
+    "web:build": "npm -w apps/web run build"
   },
   "devDependencies": {
     "@aws-sdk/client-dynamodb": "3.1154.0",
