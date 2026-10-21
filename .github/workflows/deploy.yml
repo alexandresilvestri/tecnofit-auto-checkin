@@ -67,9 +67,9 @@ jobs:
             echo "WEB_URL=$web_url"
           } >> "$GITHUB_ENV"
       - run: npm run web:build
-      - run: aws s3 sync apps/web/dist "s3://$WEB_BUCKET" --delete
+      - run: aws s3 sync apps/web/dist "s3://$WEB_BUCKET" --delete --exclude index.html
       - run: aws s3 cp apps/web/dist/index.html "s3://$WEB_BUCKET/index.html" --cache-control no-cache --content-type text/html
-      - run: aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/*"
+      - run: aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/index.html"
       - name: Smoke test
         run: |
           for _ in $(seq 10); do

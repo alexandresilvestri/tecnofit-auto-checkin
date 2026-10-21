@@ -267,7 +267,7 @@ resource "aws_apigatewayv2_api" "this" {
 }
 
 resource "aws_apigatewayv2_integration" "api" {
-  for_each               = toset(["api-public", "api-user"])
+  for_each               = toset(values(local.routes))
   api_id                 = aws_apigatewayv2_api.this.id
   integration_type       = "AWS_PROXY"
   integration_uri        = aws_lambda_function.api[each.key].invoke_arn

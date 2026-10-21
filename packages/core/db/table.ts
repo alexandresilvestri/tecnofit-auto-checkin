@@ -31,7 +31,3 @@ export function mainTableInput(tableName: string): CreateTableCommandInput {
     GlobalSecondaryIndexes: [gsi("GSI1"), gsi("GSI2")],
   };
 }
-
-export function auditTableInput(tableName: string): CreateTableCommandInput {
-  return mainTableInput(tableName);
-}

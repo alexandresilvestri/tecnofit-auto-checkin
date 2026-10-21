@@ -2,7 +2,7 @@ import { CreateTableCommand, DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { CreateKeyCommand, KMSClient } from "@aws-sdk/client-kms";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { createEntities } from "../../../packages/core/db/entities.js";
-import { auditTableInput, mainTableInput } from "../../../packages/core/db/table.js";
+import { mainTableInput } from "../../../packages/core/db/table.js";
 
 export const MOTO_ENDPOINT =
   process.env.MOTO_ENDPOINT ?? "http://localhost:5000";
@@ -28,7 +28,7 @@ export async function createMainTable(): Promise<string> {
 export async function createAuditTable(): Promise<string> {
   const name = "checkin-test-audit";
   await new DynamoDBClient(awsConfig).send(
-    new CreateTableCommand(auditTableInput(name)),
+    new CreateTableCommand(mainTableInput(name)),
   );
   return name;
 }
