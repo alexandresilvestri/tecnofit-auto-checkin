@@ -23,6 +23,7 @@
     "@aws-sdk/client-dynamodb": "3.1154.0",
     "@eslint/js": "10.0.1",
     "@types/node": "26.6.5",
+    "aws-sdk-client-mock": "4.1.0",
     "esbuild": "0.28.2",
     "eslint": "10.13.0",
     "msw": "3.0.3",

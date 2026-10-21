@@ -8,6 +8,7 @@
   "dependencies": {
     "@aws-sdk/client-dynamodb": "3.1154.0",
     "@aws-sdk/client-kms": "3.1154.0",
+    "@aws-sdk/client-scheduler": "3.1154.0",
     "@aws-sdk/lib-dynamodb": "3.1154.0",
     "electrodb": "3.9.3",
     "zod": "4.6.7"
