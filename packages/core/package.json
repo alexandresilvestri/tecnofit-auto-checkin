@@ -6,6 +6,7 @@
     "./*": "./*.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-kms": "3.1154.0",
     "zod": "4.6.7"
   }
 }
