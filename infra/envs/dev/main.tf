@@ -34,3 +34,8 @@ module "backend" {
   artifacts_bucket = "checkin-artifacts-${data.aws_caller_identity.current.account_id}"
   artifact_version = var.artifact_version
 }
+
+module "data" {
+  source = "../../modules/data"
+  env    = "dev"
+}

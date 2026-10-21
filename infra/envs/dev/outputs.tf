@@ -9,3 +9,15 @@ output "scheduler_role_arn" {
 output "schedule_group_name" {
   value = module.backend.schedule_group_name
 }
+
+output "main_table_name" {
+  value = module.data.main_table_name
+}
+
+output "main_table_arn" {
+  value = module.data.main_table_arn
+}
+
+output "token_key_arn" {
+  value = module.data.token_key_arn
+}
