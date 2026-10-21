@@ -27,7 +27,7 @@ let n = 0;
 let lists: number;
 let details: number;
 let posts: { url: string; auth: string | null; requestWaitingList: boolean }[];
-let eventsReply: () => Response;
+let eventsReply: () => Response | Promise<Response>;
 let detailReply: () => Response;
 let postReply: (count: number, requestWaitingList: boolean) => Response | Promise<Response>;
 
@@ -183,6 +183,25 @@ it("marks the account for reconnect on 401", async () => {
   expect(await run(input)).toBe("failed");
   expect(await exec(input.scheduleId)).toMatchObject({ status: "failed", error: "unauthorized", attempts: 1 });
   expect((await e.account.get({ userId: input.userId, empresaId: "161322" }).go()).data?.status).toBe("reconnect");
+});
+
+it("marks the account for reconnect on 401 from the class list", async () => {
+  const input = await seed();
+  eventsReply = () => new HttpResponse(null, { status: 401 });
+  expect(await run(input)).toBe("failed");
+  expect(await exec(input.scheduleId)).toMatchObject({ status: "failed", error: "unauthorized", attempts: 0 });
+  expect((await e.account.get({ userId: input.userId, empresaId: "161322" }).go()).data?.status).toBe("reconnect");
+  expect(posts).toHaveLength(0);
+});
+
+it("finishes the execution when the reconnect write fails", async () => {
+  const input = await seed();
+  eventsReply = async () => {
+    await e.account.delete({ userId: input.userId, empresaId: "161322" }).go();
+    return new HttpResponse(null, { status: 401 });
+  };
+  await expect(run(input)).rejects.toThrow();
+  expect(await exec(input.scheduleId)).toMatchObject({ status: "failed", error: "unauthorized" });
 });
 
 it("times out after 90 s of failures", async () => {

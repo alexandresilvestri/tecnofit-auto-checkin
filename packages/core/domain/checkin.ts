@@ -49,11 +49,6 @@ export async function runCheckin(deps: CheckinDeps, input: CheckinInput): Promis
 
   let attempts = 0;
 
-  const unauthorized = async () => {
-    await entities.account.patch({ userId, empresaId: schedule.empresaId }).set({ status: "reconnect" }).go();
-    return failed("unauthorized");
-  };
-
   const work = async (): Promise<Outcome> => {
     if (time !== schedule.startTime || (schedule.kind === "once" && classDate !== schedule.date)) {
       return failed("window_mismatch");
@@ -79,7 +74,7 @@ export async function runCheckin(deps: CheckinDeps, input: CheckinInput): Promis
           latencyMs: now() - Date.parse(scheduledTime),
         };
       } catch (err) {
-        if (err instanceof TecnofitUnauthorized) return unauthorized();
+        if (err instanceof TecnofitUnauthorized) throw err;
       }
       if (now() - lastDetail >= 2000) {
         lastDetail = now();
@@ -87,7 +82,7 @@ export async function runCheckin(deps: CheckinDeps, input: CheckinInput): Promis
         try {
           detail = await getEvent(token, empresaId, classDate, event.classId, event.id);
         } catch (err) {
-          if (err instanceof TecnofitUnauthorized) return unauthorized();
+          if (err instanceof TecnofitUnauthorized) throw err;
         }
         if (detail?.checkedIn) return { status: "success" };
         if (detail?.onTimeToCheckIn && detail.count >= detail.capacity) {
@@ -112,6 +107,11 @@ export async function runCheckin(deps: CheckinDeps, input: CheckinInput): Promis
   try {
     outcome = await work();
   } catch (err) {
+    if (err instanceof TecnofitUnauthorized) {
+      const status = await finish(failed("unauthorized"));
+      await entities.account.patch({ userId, empresaId: schedule.empresaId }).set({ status: "reconnect" }).go();
+      return status;
+    }
     if (!(err instanceof TecnofitInvalidResponse)) {
       await finish(failed("unexpected"));
       throw err;
