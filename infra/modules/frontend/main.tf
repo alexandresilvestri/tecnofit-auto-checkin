@@ -109,7 +109,7 @@ resource "aws_cloudfront_distribution" "web" {
   enabled             = true
   comment             = "checkin-${var.env}"
   default_root_object = "index.html"
-  price_class         = "PriceClass_100"
+  price_class         = "PriceClass_All"
   http_version        = "http2and3"
 
   origin {

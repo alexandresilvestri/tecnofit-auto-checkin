@@ -40,7 +40,7 @@ locals {
         {
           Effect   = "Allow"
           Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query"]
-          Resource = [var.main_table_arn, "${var.main_table_arn}/index/*"]
+          Resource = var.main_table_arn
         },
         {
           Effect   = "Allow"
@@ -298,6 +298,11 @@ resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.this.id
   name        = "$default"
   auto_deploy = true
+
+  default_route_settings {
+    throttling_rate_limit  = 20
+    throttling_burst_limit = 40
+  }
 
   dynamic "route_settings" {
     for_each = toset(["POST /api/invites/check", "POST /api/onboarding", "POST /api/auth/login"])
