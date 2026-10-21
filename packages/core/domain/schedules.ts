@@ -81,6 +81,8 @@ export async function addSchedule(deps: ScheduleDeps, input: AddScheduleInput): 
 }
 
 export async function removeSchedule(deps: ScheduleDeps, userId: string, scheduleId: string): Promise<void> {
+  const { data } = await deps.entities.schedule.get({ userId, scheduleId }).go();
+  if (!data) throw new Error("Schedule not found");
   try {
     await deps.scheduler.send(new DeleteScheduleCommand({ Name: scheduleId, GroupName: deps.group }));
   } catch (err) {

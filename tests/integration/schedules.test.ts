@@ -240,6 +240,19 @@ describe("with Moto Scheduler", () => {
     expect(await listSchedules(e, userId)).toEqual([]);
   });
 
+  it("does not remove another user's schedule", async () => {
+    const a = await seedUser();
+    const b = await seedUser();
+    eventsReply = mondayEvents;
+    const d = deps(realScheduler);
+    const scheduleId = await addSchedule(d, monday(a));
+    await expect(removeSchedule(d, b, scheduleId)).rejects.toThrow("Schedule not found");
+    await expect(realScheduler.send(new GetScheduleCommand({ Name: scheduleId, GroupName: GROUP }))).resolves.toMatchObject({
+      Name: scheduleId,
+    });
+    expect((await listSchedules(e, a)).map((s) => s.scheduleId)).toEqual([scheduleId]);
+  });
+
   it("lists only the user's schedules", async () => {
     const a = await seedUser();
     const b = await seedUser();
