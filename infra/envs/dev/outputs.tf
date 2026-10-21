@@ -29,3 +29,15 @@ output "audit_table_arn" {
 output "token_key_arn" {
   value = module.data.token_key_arn
 }
+
+output "web_bucket" {
+  value = module.frontend.web_bucket
+}
+
+output "distribution_id" {
+  value = module.frontend.distribution_id
+}
+
+output "web_url" {
+  value = module.frontend.web_url
+}

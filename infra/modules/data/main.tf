@@ -64,7 +64,7 @@ resource "aws_dynamodb_table" "main" {
   }
 }
 
-# SSE uses the AWS-managed key; the only secret (Tecnofit JWT) is already encrypted with its own CMK.
+# The audit table holds no secrets; AWS-managed SSE is enough.
 # nosemgrep: terraform.aws.security.aws-dynamodb-table-unencrypted.aws-dynamodb-table-unencrypted
 resource "aws_dynamodb_table" "audit" {
   name         = "checkin-${var.env}-audit"
