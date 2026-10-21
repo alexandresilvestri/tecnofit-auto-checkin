@@ -1,3 +1,4 @@
+import { CloudFrontClient, ListDistributionsCommand } from "@aws-sdk/client-cloudfront";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { KMSClient } from "@aws-sdk/client-kms";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
@@ -21,5 +22,11 @@ export async function loadEnv() {
     group: `checkin-${env}`,
     workerArn: `arn:aws:lambda:${REGION}:${Account}:function:checkin-${env}-checkin-worker`,
     roleArn: `arn:aws:iam::${Account}:role/checkin-${env}-scheduler-invoke`,
+    webUrl: async () => {
+      const { DistributionList } = await new CloudFrontClient({ region: REGION }).send(new ListDistributionsCommand({}));
+      const domain = DistributionList?.Items?.find((d) => d.Comment === `checkin-${env}`)?.DomainName;
+      if (!domain) throw new Error(`No CloudFront distribution found for checkin-${env}`);
+      return `https://${domain}`;
+    },
   };
 }
