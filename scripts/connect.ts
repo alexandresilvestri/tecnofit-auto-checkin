@@ -3,7 +3,7 @@ import { encryptToken } from "@checkin/core/crypto/token";
 import { getMe, login } from "@checkin/core/tecnofit/client";
 import { loadEnv } from "./env.js";
 
-const email = process.env.TECNOFIT_EMAIL;
+const email = process.env.TECNOFIT_EMAIL?.trim().toLowerCase();
 const password = process.env.TECNOFIT_PASSWORD;
 if (!email || !password) {
   console.error("Set TECNOFIT_EMAIL and TECNOFIT_PASSWORD");
