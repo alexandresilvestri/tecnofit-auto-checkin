@@ -28,7 +28,7 @@ const INVITE_STATUS = [
   "revoked",
   "burned",
 ] as const;
-const ACTOR_TYPE = ["user", "anonymous", "system", "cli"] as const;
+const ACTOR_TYPE = ["user", "anonymous", "system", "cli", "admin"] as const;
 const AUDIT_RESULT = ["success", "denied", "error"] as const;
 
 export function createEntities(
@@ -142,6 +142,7 @@ export function createEntities(
         date: { type: "string" },
         allowWaitingList: { type: "boolean", required: true },
         active: { type: "boolean", required: true },
+        pausedBySuspension: { type: "boolean" },
       },
       indexes: {
         byUser: {

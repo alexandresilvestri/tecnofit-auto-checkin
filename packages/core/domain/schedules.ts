@@ -155,7 +155,7 @@ export async function updateSchedule(
   deps: ScheduleDeps,
   userId: string,
   scheduleId: string,
-  patch: { active?: boolean; allowWaitingList?: boolean },
+  patch: { active?: boolean; allowWaitingList?: boolean; pausedBySuspension?: boolean },
 ): Promise<void> {
   const { entities } = deps;
   const { data: current } = await entities.schedule.get({ userId, scheduleId }).go();
@@ -211,4 +211,8 @@ export async function listExecutions(entities: Entities, userId: string, cursor?
     if ((err as { code?: number }).code === 4001) throw new InvalidCursor();
     throw err;
   }
+}
+
+export async function listExecutionsByDate(entities: Entities, date: string) {
+  return (await entities.execution.query.byDate({ classDate: date }).go({ pages: "all" })).data;
 }

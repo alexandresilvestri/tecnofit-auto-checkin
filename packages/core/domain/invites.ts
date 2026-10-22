@@ -37,6 +37,20 @@ export class InvalidCredentials extends Error {
   }
 }
 
+export class InviteNotFound extends Error {
+  constructor() {
+    super("Invite not found");
+    this.name = "InviteNotFound";
+  }
+}
+
+export class InviteNotPending extends Error {
+  constructor() {
+    super("Invite is not pending");
+    this.name = "InviteNotPending";
+  }
+}
+
 const INVITE_TTL_MS = 15 * 60_000;
 const MAX_ATTEMPTS = 5;
 
@@ -62,7 +76,7 @@ export async function createInvite(
   await writeAudit(
     deps.entities,
     {
-      actorType: input.createdBy === "cli" ? "cli" : "user",
+      actorType: input.createdBy === "cli" ? "cli" : "admin",
       actorId: input.createdBy,
       action: "invite.created",
       targetType: "invite",
@@ -73,6 +87,27 @@ export async function createInvite(
     now,
   );
   return { token, inviteId, expiresAt };
+}
+
+export async function listInvites(entities: Entities, now: number) {
+  const { data } = await entities.invite.query.byCreated({}).go({ pages: "all", order: "desc" });
+  return data.map((invite) =>
+    invite.status === "pending" && invite.expiresAt <= now ? { ...invite, status: "expired" as const } : invite,
+  );
+}
+
+export async function revokeInvite(entities: Entities, inviteId: string): Promise<void> {
+  try {
+    await entities.invite
+      .patch({ inviteId })
+      .set({ status: "revoked" })
+      .where((a, { eq }) => eq(a.status, "pending"))
+      .go();
+  } catch (err) {
+    if (!isConditionalFailure(err)) throw err;
+    const { data } = await entities.invite.get({ inviteId }).go();
+    throw data ? new InviteNotPending() : new InviteNotFound();
+  }
 }
 
 async function isPending(deps: PublicDeps, inviteId: string): Promise<boolean> {

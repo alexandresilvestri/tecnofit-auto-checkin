@@ -13,10 +13,19 @@ import { encryptToken } from "../../packages/core/crypto/token.js";
 import type { Entities } from "../../packages/core/db/entities.js";
 import {
   addSchedule,
+  listExecutionsByDate,
+  listSchedules,
+  updateSchedule,
   type ScheduleDeps,
 } from "../../packages/core/domain/schedules.js";
 import { createSession } from "../../packages/core/domain/sessions.js";
-import { deleteUser } from "../../packages/core/domain/users.js";
+import {
+  deleteUser,
+  reactivateUser,
+  revokeUserSessions,
+  suspendUser,
+  UserNotFound,
+} from "../../packages/core/domain/users.js";
 import events from "../fixtures/tecnofit/events.json";
 import { fakeJwt } from "../fixtures/tecnofit/jwt.js";
 import {
@@ -194,5 +203,83 @@ describe("deleteUser", () => {
     } as unknown as Entities;
     await expect(deleteUser({ ...deps, entities: stub }, "u_unproc")).rejects.toThrow("unprocessed");
     await expect(deleteUser(deps, "u_unproc")).resolves.toBeUndefined();
+  });
+});
+
+const state = async (id: string) =>
+  (await scheduler.send(new GetScheduleCommand({ Name: id, GroupName: GROUP }))).State;
+
+describe("suspendUser / reactivateUser", () => {
+  it("pauses only active schedules, revokes sessions and restores only those", async () => {
+    await seed("u_susp");
+    await seed("u_other");
+    const a = await addSchedule(deps, monday("u_susp"));
+    const b = await addSchedule(deps, monday("u_susp"));
+    await updateSchedule(deps, "u_susp", b, { active: false });
+    await createSession(e, "u_susp", { ip: "1.1.1.1", userAgent: "ua" }, NOW);
+    await createSession(e, "u_other", { ip: "1.1.1.1", userAgent: "ua" }, NOW);
+
+    await suspendUser(deps, "u_susp");
+
+    expect((await e.profile.get({ userId: "u_susp" }).go()).data?.status).toBe("suspended");
+    const rows = await listSchedules(e, "u_susp");
+    expect(rows.find((r) => r.scheduleId === a)).toMatchObject({ active: false, pausedBySuspension: true });
+    expect(rows.find((r) => r.scheduleId === b)).toMatchObject({ active: false });
+    expect(rows.find((r) => r.scheduleId === b)?.pausedBySuspension).toBeUndefined();
+    expect(await state(a)).toBe("DISABLED");
+    expect(await state(b)).toBe("DISABLED");
+    expect((await e.session.query.byUser({ userId: "u_susp" }).go()).data).toEqual([]);
+    expect((await e.session.query.byUser({ userId: "u_other" }).go()).data).toHaveLength(1);
+
+    await reactivateUser(deps, "u_susp");
+
+    expect((await e.profile.get({ userId: "u_susp" }).go()).data?.status).toBe("active");
+    const after = await listSchedules(e, "u_susp");
+    expect(after.find((r) => r.scheduleId === a)).toMatchObject({ active: true, pausedBySuspension: false });
+    expect(after.find((r) => r.scheduleId === b)?.active).toBe(false);
+    expect(await state(a)).toBe("ENABLED");
+    expect(await state(b)).toBe("DISABLED");
+  });
+
+  it("only clears the flag of a finished one-off schedule on reactivation", async () => {
+    await seed("u_fin");
+    const id = await addSchedule({ ...deps, now: () => NOW - 86400_000 }, {
+      ...monday("u_fin"),
+      kind: "once",
+      date: "2026-10-19",
+      weekdays: undefined,
+    } as never);
+    await suspendUser(deps, "u_fin");
+    await reactivateUser({ ...deps, now: () => NOW + 86400_000 }, "u_fin");
+    const [row] = await listSchedules(e, "u_fin");
+    expect(row).toMatchObject({ scheduleId: id, active: false, pausedBySuspension: false });
+    expect((await e.profile.get({ userId: "u_fin" }).go()).data?.status).toBe("active");
+  });
+
+  it("throws UserNotFound for an unknown user", async () => {
+    await expect(suspendUser(deps, "u_nope")).rejects.toBeInstanceOf(UserNotFound);
+    await expect(reactivateUser(deps, "u_nope")).rejects.toBeInstanceOf(UserNotFound);
+  });
+});
+
+describe("revokeUserSessions", () => {
+  it("removes only the user's sessions", async () => {
+    await createSession(e, "u_rs1", { ip: "1.1.1.1", userAgent: "ua" }, NOW);
+    await createSession(e, "u_rs2", { ip: "1.1.1.1", userAgent: "ua" }, NOW);
+    await revokeUserSessions(e, "u_rs1");
+    expect((await e.session.query.byUser({ userId: "u_rs1" }).go()).data).toEqual([]);
+    expect((await e.session.query.byUser({ userId: "u_rs2" }).go()).data).toHaveLength(1);
+  });
+});
+
+describe("listExecutionsByDate", () => {
+  it("returns every execution of the date", async () => {
+    for (const [userId, classDate] of [["u_x1", "2026-11-01"], ["u_x2", "2026-11-01"], ["u_x3", "2026-11-02"]]) {
+      await e.execution
+        .create({ scheduleId: `s_${userId}`, classDate, userId, status: "success", attempts: 1, ttl: 1 })
+        .go();
+    }
+    const rows = await listExecutionsByDate(e, "2026-11-01");
+    expect(rows.map((r) => r.userId).sort()).toEqual(["u_x1", "u_x2"]);
   });
 });
