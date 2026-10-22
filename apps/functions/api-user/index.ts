@@ -181,6 +181,7 @@ app.get("/api/classes", async (c) => {
 
 app.get("/api/schedules", async (c) => {
   const schedules = await listSchedules(entities, session(c).userId);
+  const now = Date.now();
   const cards = await Promise.all(
     schedules.map(async (item) => {
       const [last] = (
@@ -195,12 +196,17 @@ app.get("/api/schedules", async (c) => {
         date: item.date,
         allowWaitingList: item.allowWaitingList,
         active: item.active,
-        nextClass: item.active ? nextClass(item as Parameters<typeof nextClass>[0], Date.now()) : null,
+        finished: item.kind === "once" && nextClass(item as Parameters<typeof nextClass>[0], now) === null,
+        nextClass: item.active ? nextClass(item as Parameters<typeof nextClass>[0], now) : null,
         last: last ? { classDate: last.classDate, status: last.status } : null,
       };
     }),
   );
-  return c.json(cards);
+  const order = (card: (typeof cards)[number]) =>
+    card.kind === "weekly"
+      ? `0 ${Math.min(...(card.weekdays ?? []))} ${card.startTime}`
+      : `1 ${card.date} ${card.startTime}`;
+  return c.json(cards.sort((a, b) => order(a).localeCompare(order(b))));
 });
 
 app.post("/api/schedules", async (c) => {
@@ -243,7 +249,14 @@ app.delete("/api/schedules/:id", async (c) => {
 app.get("/api/executions", async (c) => {
   const query = executionsQuery.safeParse(c.req.query());
   if (!query.success) return c.json(invalidRequest, 400);
-  const { items, cursor } = await listExecutions(entities, session(c).userId, query.data.cursor);
+  let page;
+  try {
+    page = await listExecutions(entities, session(c).userId, query.data.cursor);
+  } catch (err) {
+    if ((err as { code?: number }).code === 4001) return c.json(invalidRequest, 400);
+    throw err;
+  }
+  const { items, cursor } = page;
   return c.json({
     items: items.map(({ scheduleId, classDate, className, startTime, status, attempts, error }) => ({
       scheduleId,

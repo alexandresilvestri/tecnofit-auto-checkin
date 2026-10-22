@@ -182,4 +182,17 @@ describe("deleteUser", () => {
     await expect(deleteUser(deps, "u_twice")).resolves.toBeUndefined();
     expect(await mainItems("USER#u_twice")).toEqual([]);
   });
+
+  it("throws when a batch delete leaves unprocessed items", async () => {
+    await seed("u_unproc");
+    const stub = {
+      ...e,
+      execution: {
+        query: e.execution.query,
+        delete: () => ({ go: async () => ({ data: [], unprocessed: [{}] }) }),
+      },
+    } as unknown as Entities;
+    await expect(deleteUser({ ...deps, entities: stub }, "u_unproc")).rejects.toThrow("unprocessed");
+    await expect(deleteUser(deps, "u_unproc")).resolves.toBeUndefined();
+  });
 });

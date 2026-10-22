@@ -350,6 +350,21 @@ describe("updateSchedule", () => {
     });
   });
 
+  it("throws ScheduleFinished before writing when resuming a once schedule that already fired", async () => {
+    const userId = await seedUser();
+    const d = deps(realScheduler);
+    const scheduleId = await addSchedule(d, once(userId));
+    await updateSchedule(d, userId, scheduleId, { active: false });
+    const late = { ...d, now: () => Date.parse("2026-10-21T12:00:00Z") };
+    await expect(
+      updateSchedule(late, userId, scheduleId, { active: true, allowWaitingList: true }),
+    ).rejects.toBeInstanceOf(ScheduleFinished);
+    expect((await e.schedule.get({ userId, scheduleId }).go()).data).toMatchObject({
+      active: false,
+      allowWaitingList: false,
+    });
+  });
+
   it("reverts and rethrows other Scheduler errors", async () => {
     const userId = await seedUser();
     eventsReply = mondayEvents;

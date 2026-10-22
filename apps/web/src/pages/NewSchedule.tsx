@@ -79,6 +79,8 @@ export function NewSchedule() {
         value={date}
         onChange={(e) => {
           setDate(e.target.value);
+          setWeekly(false);
+          setWeekdays([]);
           setClasses(undefined);
           setSelected(undefined);
         }}

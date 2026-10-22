@@ -8,6 +8,7 @@ export function Account() {
   const [me, setMe] = useState<Me>();
   const [error, setError] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     get<Me>("/api/me")
@@ -18,20 +19,24 @@ export function Account() {
   }, []);
 
   async function logout() {
+    setBusy(true);
     try {
       await post("/api/auth/logout");
       location.assign("/login");
     } catch (e) {
       if (!guard(e)) setError(errorMessage(e));
+      setBusy(false);
     }
   }
 
   async function remove() {
+    setBusy(true);
     try {
       await del("/api/me");
       location.assign("/login");
     } catch (e) {
       if (!guard(e)) setError(errorMessage(e));
+      setBusy(false);
     }
   }
 
@@ -50,9 +55,9 @@ export function Account() {
               : "Conexão com a Tecnofit expirada — faça login novamente"}
           </p>
           {me.accountStatus === "reconnect" && (
-            <button type="button" onClick={logout}>Reconectar</button>
+            <button type="button" disabled={busy} onClick={logout}>Reconectar</button>
           )}
-          <button type="button" onClick={logout}>Sair</button>
+          <button type="button" disabled={busy} onClick={logout}>Sair</button>
           <form
             className="danger"
             onSubmit={(e) => {
@@ -68,7 +73,7 @@ export function Account() {
               value={confirmation}
               onChange={(e) => setConfirmation(e.target.value)}
             />
-            <button type="submit" disabled={confirmation !== "EXCLUIR"}>Excluir conta</button>
+            <button type="submit" disabled={busy || confirmation !== "EXCLUIR"}>Excluir conta</button>
           </form>
         </>
       )}

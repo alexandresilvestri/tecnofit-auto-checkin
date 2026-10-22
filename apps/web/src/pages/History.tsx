@@ -26,9 +26,11 @@ export function History() {
   const [items, setItems] = useState<Execution[]>();
   const [cursor, setCursor] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function load(next?: string | null) {
     setError("");
+    setLoading(true);
     try {
       const path = next ? `/api/executions?cursor=${encodeURIComponent(next)}` : "/api/executions";
       const page = await get<{ items: Execution[]; cursor: string | null }>(path);
@@ -36,6 +38,8 @@ export function History() {
       setCursor(page.cursor);
     } catch (e) {
       if (!guard(e)) setError(errorMessage(e));
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -60,7 +64,7 @@ export function History() {
           </p>
         </article>
       ))}
-      {cursor && <button type="button" onClick={() => load(cursor)}>Carregar mais</button>}
+      {cursor && <button type="button" disabled={loading} onClick={() => load(cursor)}>Carregar mais</button>}
     </section>
   );
 }

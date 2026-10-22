@@ -11,6 +11,7 @@ type Schedule = {
   date?: string;
   allowWaitingList: boolean;
   active: boolean;
+  finished: boolean;
   nextClass: string | null;
   last: { classDate: string; status: string } | null;
 };
@@ -93,7 +94,7 @@ export function Schedules() {
               ? [...(s.weekdays ?? [])].sort().map((d) => WEEKDAYS[d]).join(", ")
               : s.date && fullDate(s.date)}
             {" · "}
-            {s.active ? "Ativo" : "Pausado"}
+            {s.finished ? "Encerrado" : s.active ? "Ativo" : "Pausado"}
           </p>
           <p>Próxima aula: {s.nextClass ? nextLabel(s.nextClass) : "—"}</p>
           <p>
@@ -101,19 +102,23 @@ export function Schedules() {
               ? `${shortDate(s.last.classDate)} ${STATUS_LABEL[s.last.status] ?? s.last.status}`
               : "—"}
           </p>
-          <label className="check" htmlFor={`wl-${s.scheduleId}`}>
-            <input
-              id={`wl-${s.scheduleId}`}
-              type="checkbox"
-              checked={s.allowWaitingList}
-              onChange={(e) => change(s.scheduleId, { allowWaitingList: e.target.checked })}
-            />
-            Lista de espera
-          </label>
+          {!s.finished && (
+            <label className="check" htmlFor={`wl-${s.scheduleId}`}>
+              <input
+                id={`wl-${s.scheduleId}`}
+                type="checkbox"
+                checked={s.allowWaitingList}
+                onChange={(e) => change(s.scheduleId, { allowWaitingList: e.target.checked })}
+              />
+              Lista de espera
+            </label>
+          )}
           <div className="actions">
-            <button type="button" onClick={() => change(s.scheduleId, { active: !s.active })}>
-              {s.active ? "Pausar" : "Retomar"}
-            </button>
+            {!s.finished && (
+              <button type="button" onClick={() => change(s.scheduleId, { active: !s.active })}>
+                {s.active ? "Pausar" : "Retomar"}
+              </button>
+            )}
             <button type="button" className="danger-btn" onClick={() => remove(s.scheduleId)}>
               Excluir
             </button>

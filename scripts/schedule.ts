@@ -1,6 +1,6 @@
 import { parseArgs } from "node:util";
 import { decryptToken } from "@checkin/core/crypto/token";
-import { addSchedule, ClassNotFound, listSchedules, removeSchedule } from "@checkin/core/domain/schedules";
+import { addSchedule, ClassNotFound, listSchedules, removeSchedule, TooLate } from "@checkin/core/domain/schedules";
 import { scheduleExpression, type ScheduleSpec } from "@checkin/core/domain/time";
 import { listEvents } from "@checkin/core/tecnofit/client";
 import { loadEnv } from "./env.js";
@@ -72,8 +72,9 @@ if (command === "classes") {
     });
     console.log(`${scheduleId} · ${scheduleExpression(spec)}`);
   } catch (err) {
-    if (!(err instanceof ClassNotFound)) throw err;
-    console.error("Class not found on that date and time");
+    if (err instanceof TooLate) console.error("Check-in already open for that class");
+    else if (err instanceof ClassNotFound) console.error("Class not found on that date and time");
+    else throw err;
     process.exit(1);
   }
 } else if (command === "list") {

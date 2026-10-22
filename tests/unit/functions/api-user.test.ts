@@ -224,11 +224,28 @@ it("schedules lists cards with nextClass and last", async () => {
   const res = await send("GET", "/api/schedules", {});
   expect(res.statusCode).toBe(200);
   const [a, b] = JSON.parse(res.body);
-  expect(a).toMatchObject({ scheduleId: "a", kind: "weekly", weekdays: [1], active: true, last: { classDate: "2026-07-27", status: "success" } });
+  expect(a).toMatchObject({ scheduleId: "a", kind: "weekly", weekdays: [1], active: true, finished: false, last: { classDate: "2026-07-27", status: "success" } });
   expect(typeof a.nextClass).toBe("string");
-  expect(b).toMatchObject({ scheduleId: "b", kind: "once", date: "2099-01-05", active: false, nextClass: null, last: null });
+  expect(b).toMatchObject({ scheduleId: "b", kind: "once", date: "2099-01-05", active: false, finished: false, nextClass: null, last: null });
   expect(a.userId).toBeUndefined();
   expect(a.empresaId).toBeUndefined();
+});
+
+it("schedules marks fired once schedules as finished and sorts weekly first", async () => {
+  const base = { userId: "u1", empresaId: "9", className: "Cross", allowWaitingList: false, active: true };
+  sched.listSchedules.mockResolvedValue([
+    { ...base, scheduleId: "o2", kind: "once", date: "2099-01-06", startTime: "07:00" },
+    { ...base, scheduleId: "o1", kind: "once", date: "2020-01-05", startTime: "18:30" },
+    { ...base, scheduleId: "w2", kind: "weekly", weekdays: [3, 5], startTime: "07:00" },
+    { ...base, scheduleId: "w1", kind: "weekly", weekdays: [1], startTime: "18:30" },
+    { ...base, scheduleId: "w0", kind: "weekly", weekdays: [1], startTime: "07:00" },
+  ]);
+  ddb.on(QueryCommand).resolves({ Items: [] });
+  const res = await send("GET", "/api/schedules", {});
+  const cards = JSON.parse(res.body);
+  expect(cards.map((x: { scheduleId: string }) => x.scheduleId)).toEqual(["w0", "w1", "w2", "o1", "o2"]);
+  expect(cards.map((x: { finished: boolean }) => x.finished)).toEqual([false, false, false, true, false]);
+  expect(cards[3].nextClass).toBeNull();
 });
 
 it.each([
@@ -335,6 +352,19 @@ it("executions with oversized cursor returns 400", async () => {
   const res = await send("GET", "/api/executions", {}, { query: `cursor=${"a".repeat(2049)}` });
   expect(res.statusCode).toBe(400);
   expect(sched.listExecutions).not.toHaveBeenCalled();
+});
+
+it("executions with unparseable cursor returns 400", async () => {
+  sched.listExecutions.mockRejectedValue(Object.assign(new Error("Unable to parse cursor"), { code: 4001 }));
+  const res = await send("GET", "/api/executions", {}, { query: "cursor=abc" });
+  expect(res.statusCode).toBe(400);
+  expect(JSON.parse(res.body)).toEqual(invalid);
+});
+
+it("executions rethrows other listing failures as 500", async () => {
+  sched.listExecutions.mockRejectedValue(new Error("boom"));
+  const res = await send("GET", "/api/executions", {}, { query: "cursor=abc" });
+  expect(res.statusCode).toBe(500);
 });
 
 it("delete me removes the user, audits and clears the cookie", async () => {

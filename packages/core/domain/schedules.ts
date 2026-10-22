@@ -148,6 +148,12 @@ export async function updateSchedule(
   const { entities } = deps;
   const { data: current } = await entities.schedule.get({ userId, scheduleId }).go();
   if (!current) throw new ScheduleNotFound();
+  if (
+    patch.active === true &&
+    current.kind === "once" &&
+    nextClass({ kind: "once", startTime: current.startTime, date: current.date! }, deps.now()) === null
+  )
+    throw new ScheduleFinished();
   const { data: updated } = await entities.schedule
     .patch({ userId, scheduleId })
     .set(patch)
