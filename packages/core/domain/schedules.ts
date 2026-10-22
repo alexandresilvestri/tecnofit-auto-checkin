@@ -175,7 +175,11 @@ export async function updateSchedule(
   } catch (err) {
     await entities.schedule
       .patch({ userId, scheduleId })
-      .set({ active: current.active, allowWaitingList: current.allowWaitingList })
+      .set({
+        active: current.active,
+        allowWaitingList: current.allowWaitingList,
+        pausedBySuspension: current.pausedBySuspension ?? false,
+      })
       .go();
     if ((err as { name?: string }).name === "ResourceNotFoundException") throw new ScheduleFinished();
     throw err;

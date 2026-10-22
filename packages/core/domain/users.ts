@@ -66,11 +66,16 @@ export async function suspendUser(deps: ScheduleDeps, userId: string): Promise<v
   const { entities } = deps;
   await requireProfile(entities, userId);
   await entities.profile.patch({ userId }).set({ status: "suspended" }).go();
+  await revokeUserSessions(entities, userId);
   const schedules = await listSchedules(entities, userId);
   for (const { scheduleId, active } of schedules) {
-    if (active) await updateSchedule(deps, userId, scheduleId, { active: false, pausedBySuspension: true });
+    if (!active) continue;
+    try {
+      await updateSchedule(deps, userId, scheduleId, { active: false, pausedBySuspension: true });
+    } catch (err) {
+      if (!(err instanceof ScheduleFinished)) throw err;
+    }
   }
-  await revokeUserSessions(entities, userId);
 }
 
 export async function reactivateUser(deps: ScheduleDeps, userId: string): Promise<void> {

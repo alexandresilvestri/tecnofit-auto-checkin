@@ -1,6 +1,7 @@
 import { KMSClient } from "@aws-sdk/client-kms";
 import {
   CreateScheduleGroupCommand,
+  DeleteScheduleCommand,
   GetScheduleCommand,
   SchedulerClient,
 } from "@aws-sdk/client-scheduler";
@@ -254,6 +255,44 @@ describe("suspendUser / reactivateUser", () => {
     const [row] = await listSchedules(e, "u_fin");
     expect(row).toMatchObject({ scheduleId: id, active: false, pausedBySuspension: false });
     expect((await e.profile.get({ userId: "u_fin" }).go()).data?.status).toBe("active");
+  });
+
+  it("revokes sessions and restores the row when the Scheduler fails", async () => {
+    await seed("u_fail");
+    const id = await addSchedule(deps, monday("u_fail"));
+    await createSession(e, "u_fail", { ip: "1.1.1.1", userAgent: "ua" }, NOW);
+    const failing = {
+      send: async () => {
+        throw Object.assign(new Error("boom"), { name: "InternalServerException" });
+      },
+    } as unknown as SchedulerClient;
+
+    await expect(suspendUser({ ...deps, scheduler: failing }, "u_fail")).rejects.toThrow("boom");
+
+    expect((await e.session.query.byUser({ userId: "u_fail" }).go()).data).toEqual([]);
+    expect((await e.profile.get({ userId: "u_fail" }).go()).data?.status).toBe("suspended");
+    const [row] = await listSchedules(e, "u_fail");
+    expect(row.scheduleId).toBe(id);
+    expect(row.active).toBe(true);
+    expect(row.pausedBySuspension).toBeFalsy();
+  });
+
+  it("skips a finished one-off during suspension without flagging it", async () => {
+    await seed("u_skip");
+    const id = await addSchedule({ ...deps, now: () => NOW - 86400_000 }, {
+      ...monday("u_skip"),
+      kind: "once",
+      date: "2026-10-19",
+      weekdays: undefined,
+    } as never);
+    await scheduler.send(new DeleteScheduleCommand({ Name: id, GroupName: GROUP }));
+    await createSession(e, "u_skip", { ip: "1.1.1.1", userAgent: "ua" }, NOW);
+
+    await suspendUser(deps, "u_skip");
+
+    const [row] = await listSchedules(e, "u_skip");
+    expect(row.pausedBySuspension).toBeFalsy();
+    expect((await e.session.query.byUser({ userId: "u_skip" }).go()).data).toEqual([]);
   });
 
   it("throws UserNotFound for an unknown user", async () => {
