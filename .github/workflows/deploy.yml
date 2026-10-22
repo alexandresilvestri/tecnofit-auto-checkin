@@ -73,7 +73,7 @@ jobs:
       - name: Smoke test
         run: |
           for _ in $(seq 10); do
-            curl -fsS "$WEB_URL/api/health" && exit 0
+            curl -fsS "$WEB_URL/api/health" | jq -e ".ok == true" && exit 0
             sleep 15
           done
           exit 1
