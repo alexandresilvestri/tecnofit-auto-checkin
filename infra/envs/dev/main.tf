@@ -67,8 +67,9 @@ module "backend" {
 }
 
 module "data" {
-  source = "../../modules/data"
-  env    = "dev"
+  source        = "../../modules/data"
+  env           = "dev"
+  operator_arns = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/alexandresilvestri"]
 }
 
 module "frontend" {

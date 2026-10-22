@@ -148,6 +148,26 @@ Se persistir 403 por mais de ~15 min, confira se o apply terminou nas Lambdas e 
 
 Chamadas diretas ao `execute-api` são negadas: rotas com authorizer (user/admin) respondem 401 do API Gateway e as demais 403.
 
+## Acesso à chave KMS
+
+A chave `alias/checkin-<env>-token` (política em `infra/modules/data/main.tf`) só aceita cifrar e decifrar de:
+
+- `checkin-<env>-checkin-worker` (decifra no check-in);
+- `checkin-<env>-api-public` (cifra no cadastro e no login);
+- `checkin-<env>-api-user` (decifra na lista de aulas);
+- os `operator_arns` do ambiente (hoje `user/alexandresilvestri`, usado por `connect`, `schedule classes` e `migrate`).
+
+Só `checkin-hcp-terraform-<env>`, os operadores e o root administram a chave (política, rotação, exclusão, grants, tags). Além disso, a role `checkin-hcp-terraform-dev` tem a policy `checkin-dev-deny-prod` (bootstrap), que nega qualquer ação em recursos com `checkin-prod` no ARN ou com a tag `Env = prod`.
+
+Para incluir um operador: adicione o ARN em `operator_arns` no `module "data"` de `infra/envs/<env>/main.tf`, abra um PR e promova.
+
+`AccessDenied` de KMS nos logs de uma Lambda: confira se o nome da role ainda segue `checkin-<env>-<função>` (a política monta os ARNs por convenção) e compare com a política aplicada:
+
+```bash
+KEY=$(aws kms describe-key --region us-east-1 --key-id alias/checkin-<env>-token --query KeyMetadata.Arn --output text)
+aws kms get-key-policy --region us-east-1 --key-id "$KEY" --policy-name default --output text
+```
+
 ## Alarmes
 
 Todos notificam o tópico SNS `checkin-<env>-alarms` (e-mail). Janela de 5 min.

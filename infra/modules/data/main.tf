@@ -134,9 +134,68 @@ resource "aws_dynamodb_table" "audit" {
   }
 }
 
+data "aws_caller_identity" "current" {}
+
+locals {
+  account_root = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+  role_arn     = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/checkin-${var.env}"
+}
+
 resource "aws_kms_key" "token" {
   description         = "checkin-${var.env} tecnofit token encryption"
   enable_key_rotation = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AccountRoot"
+        Effect    = "Allow"
+        Principal = { AWS = local.account_root }
+        Action    = "kms:*"
+        Resource  = "*"
+      },
+      {
+        Sid       = "TokenUseOnlyByApp"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = ["kms:Encrypt", "kms:Decrypt", "kms:ReEncrypt*", "kms:GenerateDataKey*"]
+        Resource  = "*"
+        Condition = {
+          StringNotLike = {
+            "aws:PrincipalArn" = concat(
+              ["${local.role_arn}-checkin-worker", "${local.role_arn}-api-public", "${local.role_arn}-api-user"],
+              var.operator_arns,
+            )
+          }
+        }
+      },
+      {
+        Sid       = "KeyAdminOnlyByOwners"
+        Effect    = "Deny"
+        Principal = "*"
+        Action = [
+          "kms:PutKeyPolicy",
+          "kms:ScheduleKeyDeletion",
+          "kms:CancelKeyDeletion",
+          "kms:DisableKey",
+          "kms:DisableKeyRotation",
+          "kms:CreateGrant",
+          "kms:TagResource",
+          "kms:UntagResource",
+        ]
+        Resource = "*"
+        Condition = {
+          StringNotLike = {
+            "aws:PrincipalArn" = concat(
+              ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/checkin-hcp-terraform-${var.env}", local.account_root],
+              var.operator_arns,
+            )
+          }
+        }
+      },
+    ]
+  })
 }
 
 resource "aws_kms_alias" "token" {

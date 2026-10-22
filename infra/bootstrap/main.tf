@@ -164,6 +164,30 @@ resource "aws_iam_role_policy" "hcp_dev_iam" {
   })
 }
 
+resource "aws_iam_role_policy" "hcp_dev_deny_prod" {
+  name = "checkin-dev-deny-prod"
+  role = aws_iam_role.hcp_dev.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "DenyProdByName"
+        Effect   = "Deny"
+        Action   = "*"
+        Resource = "arn:aws:*:*:*:*checkin-prod*"
+      },
+      {
+        Sid       = "DenyProdByTag"
+        Effect    = "Deny"
+        Action    = "*"
+        Resource  = "*"
+        Condition = { StringEquals = { "aws:ResourceTag/Env" = "prod" } }
+      },
+    ]
+  })
+}
+
 resource "aws_iam_role" "hcp_prod" {
   name = "checkin-hcp-terraform-prod"
 
