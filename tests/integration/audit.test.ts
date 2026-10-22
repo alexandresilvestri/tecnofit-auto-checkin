@@ -125,14 +125,21 @@ describe("queryAudit", () => {
   }, 120_000);
 
   it("stops reading once more than 1000 items match", async () => {
+    for (let i = 0; i < 1001; i += 25) {
+      await Promise.all(
+        Array.from({ length: Math.min(25, 1001 - i) }, (_, k) =>
+          write(`2026-05-05T12:00:00.${String(i + k).padStart(3, "0")}Z`, { actorId: "adm_stop", targetId: `u_stop${i + k}` }),
+        ),
+      );
+    }
     const client = DynamoDBDocumentClient.from(new DynamoDBClient(awsConfig));
     const send = vi.spyOn(client, "send");
     const counted = createEntities(client, { main: "checkin-test-main", audit: "checkin-test-audit" });
-    const { items, truncated } = await queryAudit(counted, { from: "2026-04-01", to: "2026-04-05" });
+    const { items, truncated } = await queryAudit(counted, { from: "2026-05-01", to: "2026-05-05" });
     expect(items).toHaveLength(1000);
     expect(truncated).toBe(true);
     expect(send).toHaveBeenCalledTimes(1);
-  });
+  }, 120_000);
 
   it("rejects invalid or oversized periods", async () => {
     await expect(queryAudit(e, { from: "2026-03-01", to: "2026-04-01" })).rejects.toBeInstanceOf(InvalidAuditPeriod);

@@ -1,6 +1,6 @@
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { mockClient } from "aws-sdk-client-mock";
-import { beforeAll, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { fakeJwt } from "../../fixtures/tecnofit/jwt";
 
 const ddb = mockClient(DynamoDBDocumentClient);
@@ -14,6 +14,12 @@ beforeAll(async () => {
 });
 
 beforeEach(() => ddb.reset());
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.doUnmock("@checkin/core/domain/checkin");
+  vi.stubEnv("POWERTOOLS_LOG_LEVEL", "SILENT");
+});
 
 it("rejects event without userId before calling AWS", async () => {
   await expect(
@@ -38,6 +44,7 @@ it.each([
   ["invalid response", "invalid"],
   ["network error", "network"],
   ["unauthorized", "401"],
+  ["unexpected error carrying the token", "unexpected"],
 ])("tecnofit failure (%s) never leaks the token to the logs", async (_n, kind) => {
   const jwt = fakeJwt({ user_id: 1, empresa_id: 2, exp: 1900000000 });
   const tokenEnc = "TOKENENC-CIPHERTEXT-123";
@@ -46,6 +53,7 @@ it.each([
   vi.resetModules();
   vi.doMock("@checkin/core/domain/checkin", () => ({
     runCheckin: async () => {
+      if (kind === "unexpected") throw new Error(`Bearer ${jwt} ${tokenEnc}`);
       const fetchMock = vi.fn(async () =>
         kind === "network"
           ? Promise.reject(new Error(`connect failed Bearer ${jwt} ${tokenEnc}`))
@@ -69,9 +77,6 @@ it.each([
   await expect(
     loud({ userId: "u1", scheduleId: "s1", scheduledTime: "2026-07-01T05:16:00-03:00" }),
   ).rejects.toThrow();
-  spies.forEach((s) => s.mockRestore());
-  vi.doUnmock("@checkin/core/domain/checkin");
-  vi.stubEnv("POWERTOOLS_LOG_LEVEL", "SILENT");
   const text = out.join("\n");
   expect(text).toContain("checkin failed");
   expect(text).not.toContain(jwt);
