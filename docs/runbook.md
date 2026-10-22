@@ -22,7 +22,7 @@ gh run list --workflow promote.yml --limit 1
 gh run watch
 ```
 
-Prod URL: https://dquf6r20z50xs.cloudfront.net. To check it:
+Prod URL: https://checkin.alexandresilvestri.com.br, also served at https://dquf6r20z50xs.cloudfront.net. The `web_url` output returns the CloudFront domain. To check it:
 
 - HCP: workspace `checkin-prod` → Outputs → `web_url`; or
 - locally, after `terraform login`:
@@ -39,7 +39,7 @@ gh workflow run promote.yml --ref main -f sha=<previous-sha>
 
 A rollback does not revert data; see [ci-cd.md](ci-cd.md#release-steps). To recover data, see "PITR restore".
 
-The KMS key policy has its own rollback caveat; see [infrastructure.md](infrastructure.md#kms-key).
+The KMS key policy has its own rollback caveat; see [infrastructure.md](infrastructure.md#kms-key). So does the prod custom domain; see [infrastructure.md](infrastructure.md#custom-domain).
 
 ## Initial prod setup
 

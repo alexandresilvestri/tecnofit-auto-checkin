@@ -9,3 +9,7 @@ output "distribution_id" {
 output "web_url" {
   value = "https://${aws_cloudfront_distribution.web.domain_name}"
 }
+
+output "web_urls" {
+  value = [for host in concat([aws_cloudfront_distribution.web.domain_name], tolist(aws_cloudfront_distribution.web.aliases)) : "https://${host}"]
+}

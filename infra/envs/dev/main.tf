@@ -41,7 +41,7 @@ module "auth" {
   source               = "../../modules/auth"
   env                  = "dev"
   domain_prefix        = local.auth_domain_prefix
-  web_url              = module.frontend.web_url
+  web_urls             = module.frontend.web_urls
   artifacts_bucket     = local.artifacts_bucket
   artifact_version     = var.artifact_version
   api_id               = module.backend.api_id
