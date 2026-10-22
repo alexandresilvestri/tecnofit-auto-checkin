@@ -57,7 +57,7 @@ export async function revokeUserSessions(entities: Entities, userId: string): Pr
   assertDeleted(await entities.session.delete(sessions.map(({ sessionId }) => ({ sessionId }))).go());
 }
 
-async function requireProfile(entities: Entities, userId: string) {
+export async function requireProfile(entities: Entities, userId: string) {
   const { data } = await entities.profile.get({ userId }).go();
   if (!data) throw new UserNotFound();
 }

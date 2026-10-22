@@ -643,7 +643,7 @@ it("exports csv with headers and audits", async () => {
     query: "from=2026-07-01&to=2026-07-02&actor=a1",
   });
   expect(res.statusCode).toBe(200);
-  expect(Buffer.from(res.body, "base64").toString("utf8")).toBe("\uFEFFh\r\nrow");
+  expect(res.body).toBe("h\r\nrow");
   expect(res.headers).toMatchObject({
     "content-type": "text/csv; charset=utf-8",
     "content-disposition":

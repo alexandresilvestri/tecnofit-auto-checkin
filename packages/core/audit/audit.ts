@@ -112,11 +112,13 @@ export async function queryAudit(
         .go({ pages: "all", order: "desc" })
     ).data;
   } else {
-    rows = [];
-    for (let i = days - 1; i >= 0; i--) {
-      const day = new Date(dayStart(from).getTime() + i * DAY_MS + 12 * 3600_000).toISOString().slice(0, 10);
-      rows.push(...(await entities.audit.query.byDay({ day }).go({ pages: "all", order: "desc" })).data);
-    }
+    const pages = await Promise.all(
+      Array.from({ length: days }, (_, i) => {
+        const day = new Date(dayStart(from).getTime() + (days - 1 - i) * DAY_MS + 12 * 3600_000).toISOString().slice(0, 10);
+        return entities.audit.query.byDay({ day }).go({ pages: "all", order: "desc" });
+      }),
+    );
+    rows = pages.flatMap((page) => page.data);
   }
   const matching = rows.filter((r) => (!action || r.action === action) && (!actor || !target || r.targetId === target));
   return { items: matching.slice(0, MAX_ITEMS), truncated: matching.length > MAX_ITEMS };

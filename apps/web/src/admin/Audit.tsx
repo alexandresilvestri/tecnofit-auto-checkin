@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { stamp } from "../pages/Schedules";
 import { download, errorMessage, get } from "./api";
 
 type Item = {
@@ -87,7 +88,7 @@ export function Audit() {
       {data?.items.map((a) => (
         <article key={`${a.at}-${a.action}-${a.actorId}-${a.targetId}`} className="item">
           <h2>{a.action}</h2>
-          <p>{new Date(a.at).toLocaleString("pt-BR")} · {a.result}</p>
+          <p>{stamp(a.at)} · {a.result}</p>
           <p>Ator: {a.actorType}{a.actorId ? ` ${a.actorId}` : ""}</p>
           {a.targetId && <p>Alvo: {a.targetType} {a.targetId}</p>}
           {a.ip && <p>IP: {a.ip}</p>}

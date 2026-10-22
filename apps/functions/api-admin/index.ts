@@ -19,6 +19,7 @@ import {
   UserNotFound,
   deleteUser,
   reactivateUser,
+  requireProfile,
   revokeUserSessions,
   suspendUser,
 } from "@checkin/core/domain/users";
@@ -267,8 +268,7 @@ app.post("/api/admin/users/:id/reactivate", async (c) => {
 app.post("/api/admin/users/:id/revoke-sessions", async (c) => {
   const id = idParam.safeParse(c.req.param("id"));
   if (!id.success) return c.json(invalidRequest, 400);
-  const { data: profile } = await entities.profile.get({ userId: id.data }).go();
-  if (!profile) throw new UserNotFound();
+  await requireProfile(entities, id.data);
   await revokeUserSessions(entities, id.data);
   await auditAdmin(c, "user.sessions_revoked", "user", id.data);
   return c.body(null, 204);
@@ -278,8 +278,7 @@ app.delete("/api/admin/users/:id", async (c) => {
   const id = idParam.safeParse(c.req.param("id"));
   const input = await body(c, reasonBody);
   if (!id.success || !input) return c.json(invalidRequest, 400);
-  const { data: profile } = await entities.profile.get({ userId: id.data }).go();
-  if (!profile) throw new UserNotFound();
+  await requireProfile(entities, id.data);
   await deleteUser(deps, id.data);
   await auditAdmin(c, "user.deleted", "user", id.data, { reason: input.reason });
   return c.body(null, 204);
@@ -312,7 +311,7 @@ app.get("/api/admin/audit/export", async (c) => {
   const query = auditQuery.safeParse(c.req.query());
   if (!query.success) return c.json(invalidRequest, 400);
   const { items } = await queryAudit(entities, query.data);
-  const csv = `\uFEFF${auditCsv(items)}`;
+  const csv = auditCsv(items);
   await auditAdmin(c, "audit.exported", undefined, undefined, {
     filter: JSON.stringify(query.data).slice(0, 500),
   });
@@ -322,6 +321,4 @@ app.get("/api/admin/audit/export", async (c) => {
   });
 });
 
-export const handler = handle(app, {
-  isContentTypeBinary: (contentType) => contentType.startsWith("text/csv"),
-});
+export const handler = handle(app);

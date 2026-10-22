@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { stamp } from "../pages/Schedules";
 import { del, errorMessage, get, post } from "./api";
 
 type Invite = {
@@ -18,7 +19,6 @@ const STATUS: Record<string, string> = {
   revoked: "Revogado",
 };
 
-const stamp = (iso: string) => new Date(iso).toLocaleString("pt-BR");
 
 const clock = (ms: number) => {
   const total = Math.max(0, Math.ceil(ms / 1000));

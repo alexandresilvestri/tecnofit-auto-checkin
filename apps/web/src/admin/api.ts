@@ -51,7 +51,7 @@ export const post = <T = undefined>(path: string, body?: unknown) => json<T>(pat
 export const del = <T = undefined>(path: string, body?: unknown) => json<T>(path, jsonInit("DELETE", body));
 
 export async function download(path: string, filename: string) {
-  const blob = await (await request(path)).blob();
+  const blob = new Blob(["\uFEFF", await (await request(path)).text()], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

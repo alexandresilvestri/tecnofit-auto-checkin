@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { STATUS_LABEL, WEEKDAYS, fullDate } from "../pages/Schedules";
+import { STATUS_LABEL, WEEKDAYS, fullDate, stamp } from "../pages/Schedules";
 import { del, errorMessage, get, post } from "./api";
 import { USER_STATUS } from "./Users";
 
@@ -21,7 +21,6 @@ type Detail = {
   audit: { at: string; action: string; actorType: string; result: string; metadata?: unknown }[];
 };
 
-const stamp = (iso: string) => new Date(iso).toLocaleString("pt-BR");
 
 function Destructive({
   label,
