@@ -38,7 +38,7 @@ if (!required || required.some((flag) => !values[flag as keyof typeof values])) 
 }
 const userId = values.user!;
 
-const deps = await loadEnv();
+const deps = { ...(await loadEnv()), now: Date.now };
 const { entities, kms } = deps;
 
 async function accountOf() {
@@ -57,7 +57,6 @@ if (command === "classes") {
     console.log(`${e.name} · ${e.start} · ${e.count}/${e.capacity}`);
   }
 } else if (command === "add") {
-  const account = await accountOf();
   const startTime = values.start!;
   const date = values.date!;
   const spec: ScheduleSpec = values.weekdays
@@ -66,7 +65,6 @@ if (command === "classes") {
   try {
     const scheduleId = await addSchedule(deps, {
       userId,
-      empresaId: Number(account.empresaId),
       className: values["class-name"]!,
       allowWaitingList: values["waiting-list"] ?? false,
       refDate: date,

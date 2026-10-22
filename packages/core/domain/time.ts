@@ -44,6 +44,22 @@ export function scheduleExpression(spec: ScheduleSpec): string {
   return `at(${shifted}T${pad(hour)}:${pad(minute)}:00)`;
 }
 
+export function nextClass(spec: ScheduleSpec, now: number): string | null {
+  const floor = zonedParts(new Date(now + FIRE_BEFORE_CLASS_MIN * 60_000));
+  const after = `${floor.date} ${floor.time}`;
+  if (spec.kind === "once") {
+    const slot = `${spec.date} ${spec.startTime}`;
+    return slot > after ? slot : null;
+  }
+  const [y, mo, d] = floor.date.split("-").map(Number);
+  for (let i = 0; i < 8; i++) {
+    const day = new Date(Date.UTC(y, mo - 1, d + i));
+    const slot = `${day.toISOString().slice(0, 10)} ${spec.startTime}`;
+    if (spec.weekdays.includes(day.getUTCDay()) && slot > after) return slot;
+  }
+  return null;
+}
+
 export function classSlotFor(scheduledTime: string): { date: string; time: string } {
   return zonedParts(new Date(Date.parse(scheduledTime) + FIRE_BEFORE_CLASS_MIN * 60_000));
 }

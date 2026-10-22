@@ -170,6 +170,8 @@ export function createEntities(
         scheduleId: { type: "string", required: true },
         classDate: { type: "string", required: true },
         userId: { type: "string", required: true },
+        className: { type: "string" },
+        startTime: { type: "string" },
         status: { type: EXEC_STATUS, required: true },
         checkInId: { type: "string" },
         attempts: { type: "number", required: true },
