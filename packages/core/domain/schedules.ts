@@ -25,7 +25,6 @@ export type ScheduleDeps = {
 export type AddScheduleInput = {
   userId: string;
   className: string;
-  allowWaitingList: boolean;
   refDate: string;
 } & ScheduleSpec;
 
@@ -129,7 +128,7 @@ export async function recreateSchedule(
 
 export async function addSchedule(deps: ScheduleDeps, input: AddScheduleInput): Promise<string> {
   const { entities, scheduler } = deps;
-  const { userId, className, allowWaitingList, refDate, ...spec } = input;
+  const { userId, className, refDate, ...spec } = input;
   if (spec.kind === "once" && nextClass(spec, deps.now()) === null) throw new TooLate();
   const empresaId = await withToken(deps, userId, async (token, account) => {
     const found = (await listEvents(token, Number(account.empresaId), refDate)).some(
@@ -149,7 +148,6 @@ export async function addSchedule(deps: ScheduleDeps, input: AddScheduleInput): 
       startTime: spec.startTime,
       kind: spec.kind,
       ...(spec.kind === "weekly" ? { weekdays: spec.weekdays } : { date: spec.date }),
-      allowWaitingList,
       active: true,
     })
     .go();
@@ -175,7 +173,7 @@ export async function updateSchedule(
   deps: ScheduleDeps,
   userId: string,
   scheduleId: string,
-  patch: { active?: boolean; allowWaitingList?: boolean; pausedBySuspension?: boolean },
+  patch: { active?: boolean; pausedBySuspension?: boolean },
 ): Promise<void> {
   const { entities } = deps;
   const { data: current } = await entities.schedule.get({ userId, scheduleId }).go();
@@ -197,7 +195,6 @@ export async function updateSchedule(
       .patch({ userId, scheduleId })
       .set({
         active: current.active,
-        allowWaitingList: current.allowWaitingList,
         pausedBySuspension: current.pausedBySuspension ?? false,
       })
       .go();

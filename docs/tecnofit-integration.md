@@ -97,7 +97,7 @@ Reads one event's attendance and the user's check-in state. `getEvent` returns `
 
 ### `POST .../calendar/events/{eventId}/check-in`
 
-Checks the user in, or asks for a waiting-list spot.
+Checks the user in. The client always sends `requestWaitingList: false` ([ADR 0019](adr/0019-remove-waiting-list.md)).
 
 Request body:
 
@@ -108,7 +108,7 @@ Request body:
 | Response field | Type | Use |
 |---|---|---|
 | `id` | number | Stored as `execution.checkInId` |
-| `waitingList` | boolean | `true` gives the execution status `waitlisted` |
+| `waitingList` | boolean | `true` gives the execution status `waitlisted`. Not expected, since the client never asks for the waiting list |
 
 ## JWT claims
 
@@ -199,9 +199,8 @@ Logging in again is how a user leaves the `reconnect` state. `scripts/connect.ts
 9. Call `checkIn` in a loop until the deadline, with the same random pause between tries. Each call adds 1 to `attempts`.
 10. After a failed `checkIn`, call `getEvent` at most once every 2 seconds:
     - `checkedIn` is true: finish with `success`.
-    - The class is full and `onTimeToCheckIn` is true, with `allowWaitingList` off: fail with `full`.
-    - The class is full and `onTimeToCheckIn` is true, with `allowWaitingList` on: retry at once with `requestWaitingList: true`.
-11. A successful `checkIn` finishes with `success` or `waitlisted`, the check-in id and `latencyMs`.
+    - The class is full and `onTimeToCheckIn` is true: fail with `full`.
+11. A successful `checkIn` finishes with `success`, the check-in id and `latencyMs`.
 12. Past the deadline, the run fails with `timeout`.
 
 During the loop, only a 401 stops the run. Other `checkIn` and `getEvent` errors lead to another try.

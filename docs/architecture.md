@@ -17,7 +17,7 @@ Tecnofit Auto Check-in checks users in to classes at a Tecnofit box automaticall
 | Tecnofit token | The JWT that Tecnofit returns at login. Stored KMS-encrypted in `account.tokenEnc`. |
 | Consent | The terms shown at onboarding (`apps/web/src/consent.ts`). The accepted `CONSENT_VERSION` is recorded in the `invite.redeemed` audit event. |
 | Reconnect | Account status set when Tecnofit answers 401. The user fixes it by logging out and in again. |
-| Waiting list (lista de espera) | Tecnofit's queue for a full class. A schedule joins it only when `allowWaitingList` is true. |
+| Waiting list (lista de espera) | Tecnofit's queue for a full class. The app never joins it ([ADR 0019](adr/0019-remove-waiting-list.md)). `waitlisted` appears only on older executions. |
 
 ## Components
 
@@ -218,7 +218,7 @@ stateDiagram-v2
 - **Suspend.** Sets the profile to `suspended`, revokes all sessions and disables active schedules with `pausedBySuspension`. A suspended user cannot log in.
 - **Reactivate.** Sets the profile to `active` and re-enables only the schedules paused by the suspension.
 - **Delete.** Removes Scheduler entries, schedules, executions, accounts, the profile and sessions. Audit events stay until their TTL.
-- **Schedule edits.** `PATCH /api/schedules/{id}` changes only `active` and `allowWaitingList`.
+- **Schedule edits.** `PATCH /api/schedules/{id}` changes only `active`.
 
 Invite states:
 

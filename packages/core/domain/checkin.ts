@@ -90,12 +90,11 @@ export async function runCheckin(deps: CheckinDeps, input: CheckinInput): Promis
     if (!event) return failed("class_not_found");
     if (event.checkInId !== null) return { status: "success", checkInId: String(event.checkInId) };
 
-    let waitingList = false;
     let lastDetail = -Infinity;
     while (now() <= deadline) {
       attempts++;
       try {
-        const res = await checkIn(token, empresaId, classDate, event.classId, event.id, waitingList);
+        const res = await checkIn(token, empresaId, classDate, event.classId, event.id);
         return {
           status: res.waitingList ? "waitlisted" : "success",
           checkInId: String(res.id),
@@ -113,13 +112,7 @@ export async function runCheckin(deps: CheckinDeps, input: CheckinInput): Promis
           if (err instanceof TecnofitUnauthorized) throw err;
         }
         if (detail?.checkedIn) return { status: "success" };
-        if (detail?.onTimeToCheckIn && detail.count >= detail.capacity) {
-          if (!schedule.allowWaitingList) return failed("full");
-          if (!waitingList) {
-            waitingList = true;
-            continue;
-          }
-        }
+        if (detail?.onTimeToCheckIn && detail.count >= detail.capacity) return failed("full");
       }
       await pause();
     }

@@ -166,7 +166,7 @@ describe("getEvent", () => {
 });
 
 describe("checkIn", () => {
-  it("posts requestWaitingList and returns id", async () => {
+  it("posts requestWaitingList false and returns id", async () => {
     let raw = "";
     let contentType: string | null = null;
     server.use(
@@ -177,7 +177,7 @@ describe("checkIn", () => {
       }),
     );
 
-    await expect(checkIn("tok", 161322, "2026-10-21", 33548, 587887, false)).resolves.toEqual({
+    await expect(checkIn("tok", 161322, "2026-10-21", 33548, 587887)).resolves.toEqual({
       id: 210904124,
       waitingList: false,
     });
@@ -187,12 +187,12 @@ describe("checkIn", () => {
 
   it("maps 401 to TecnofitUnauthorized", async () => {
     server.use(http.post(`${EVENT_PATH}/check-in`, () => new HttpResponse(null, { status: 401 })));
-    await expect(checkIn("tok", 161322, "2026-10-21", 33548, 587887, false)).rejects.toBeInstanceOf(TecnofitUnauthorized);
+    await expect(checkIn("tok", 161322, "2026-10-21", 33548, 587887)).rejects.toBeInstanceOf(TecnofitUnauthorized);
   });
 
   it("maps 409 to TecnofitError with status", async () => {
     server.use(http.post(`${EVENT_PATH}/check-in`, () => HttpResponse.json({ message: "full" }, { status: 409 })));
-    const error = await checkIn("tok", 161322, "2026-10-21", 33548, 587887, false).catch((e) => e);
+    const error = await checkIn("tok", 161322, "2026-10-21", 33548, 587887).catch((e) => e);
     expect(error).toBeInstanceOf(TecnofitError);
     expect(error).not.toBeInstanceOf(TecnofitUnauthorized);
     expect(error.status).toBe(409);

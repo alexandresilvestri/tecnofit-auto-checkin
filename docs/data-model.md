@@ -117,7 +117,6 @@ A recurring or one-off check-in rule. Each item pairs with an EventBridge Schedu
 | `kind` | enum | yes | `weekly`, `once` |
 | `weekdays` | list of number | `weekly` only | `0` (Sunday) to `6` (Saturday) |
 | `date` | string | `once` only | `YYYY-MM-DD` |
-| `allowWaitingList` | boolean | yes | Join the waiting list when the class is full |
 | `active` | boolean | yes | `false` disables the EventBridge schedule |
 | `pausedBySuspension` | boolean | no | `true` while a suspension paused the schedule |
 
@@ -153,7 +152,7 @@ Status values:
 
 - `running`: claimed, not finished.
 - `success`: checked in, or already checked in.
-- `waitlisted`: Tecnofit placed the user on the waiting list.
+- `waitlisted`: Tecnofit placed the user on the waiting list. Only older executions have it ([ADR 0019](adr/0019-remove-waiting-list.md)).
 - `failed`: see `error`.
 - `skipped`: profile `suspended` or account `reconnect`.
 
@@ -163,7 +162,7 @@ Status values:
 |---|---|
 | `window_mismatch` | The fire time does not match the schedule's start time, date or weekdays |
 | `class_not_found` | No event with that name and start on the agenda |
-| `full` | The class is full and `allowWaitingList` is `false` |
+| `full` | The class is full |
 | `timeout` | No result before the worker's deadline |
 | `unauthorized` | Tecnofit rejected the token. The account becomes `reconnect` |
 | `invalid_response` | Tecnofit returned a body that failed validation |

@@ -29,7 +29,7 @@ Enum main.schedule_kind {
 Enum main.exec_status {
   running [note: 'Claimed by the worker, not finished']
   success
-  waitlisted
+  waitlisted [note: 'Older executions only, see ADR 0019']
   failed
   skipped [note: 'Profile suspended or account in reconnect']
 }
@@ -107,7 +107,6 @@ Table main.schedule {
   kind main.schedule_kind [not null]
   weekdays list [note: 'weekly only; numbers 0 (Sunday) to 6']
   date string [note: 'once only; YYYY-MM-DD']
-  allowWaitingList boolean [not null]
   active boolean [not null]
   pausedBySuspension boolean [note: 'true while paused by an admin suspension']
 

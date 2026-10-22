@@ -140,7 +140,6 @@ export function createEntities(
         kind: { type: ["weekly", "once"] as const, required: true },
         weekdays: { type: "list", items: { type: "number" } },
         date: { type: "string" },
-        allowWaitingList: { type: "boolean", required: true },
         active: { type: "boolean", required: true },
         pausedBySuspension: { type: "boolean" },
       },
