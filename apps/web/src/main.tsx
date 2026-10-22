@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import { Account } from "./pages/Account";
 import { History } from "./pages/History";
@@ -16,10 +17,21 @@ const pages: Record<string, () => React.JSX.Element> = {
   "/app/conta": Account,
 };
 
-const Page = pages[location.pathname] ?? Login;
+const Admin = lazy(() => import("./admin/Admin"));
 
-createRoot(document.getElementById("root")!).render(
-  <main className="card">
-    <Page />
-  </main>,
-);
+const root = createRoot(document.getElementById("root")!);
+
+if (location.pathname.startsWith("/admin")) {
+  root.render(
+    <Suspense fallback={<main className="card"><p>Carregando...</p></main>}>
+      <Admin />
+    </Suspense>,
+  );
+} else {
+  const Page = pages[location.pathname] ?? Login;
+  root.render(
+    <main className="card">
+      <Page />
+    </main>,
+  );
+}

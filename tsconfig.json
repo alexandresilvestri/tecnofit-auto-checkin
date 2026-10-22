@@ -5,7 +5,7 @@
     "target": "ES2024",
     "module": "preserve",
     "moduleResolution": "bundler",
-    "types": ["node"]
+    "types": ["node", "vite/client"]
   },
   "include": ["apps", "packages", "tests", "scripts", "vitest.config.ts"],
   "exclude": ["apps/web"]
