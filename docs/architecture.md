@@ -264,7 +264,7 @@ Code layout:
 - **Shells.** `src/shell/Shell.tsx` has `AppShell` (header tabs, 480 px content), `AdminShell` (admin tabs, wider container) and `AuthShell` (centered narrow form).
 - **UI kit.** `src/ui/` holds small shared components. `Dialog` and `Select` wrap the native elements.
 - **API clients.** `src/api.ts` sends same-origin cookies and `X-Requested-With: fetch`; 401 and 403 redirect to `/login`. `src/admin/api.ts` sends the Cognito bearer token and restarts login on 401.
-- **Styling.** Tailwind v4 with design tokens in `@theme` in `src/styles.css`. The theme is dark only. Icons come from `lucide-react`.
+- **Styling.** Tailwind v4 with design tokens in `@theme` in `src/styles.css`. Dark is the default; `data-theme="light"` on `<html>` overrides the same tokens, following the OS unless the header toggle stored a choice in `localStorage`. Icons come from `lucide-react`.
 - **Fonts.** Fonts are self-hosted from `@fontsource-variable/*` because the CSP blocks font CDNs.
 - **UI language.** All user-facing text is pt-BR.
 
