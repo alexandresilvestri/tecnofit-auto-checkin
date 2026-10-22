@@ -184,7 +184,7 @@ resource "aws_iam_role_policy" "hcp_dev_deny_prod" {
           "arn:aws:scheduler:*:*:*checkin-prod*",
           "arn:aws:cloudwatch:*:*:*checkin-prod*",
           "arn:aws:cloudfront::*:*checkin-prod*",
-          "arn:aws:iam::*:*checkin-prod*",
+          "arn:aws:iam::*:role/checkin-prod-*",
         ]
       },
       {
