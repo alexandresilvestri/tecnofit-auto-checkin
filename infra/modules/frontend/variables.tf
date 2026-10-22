@@ -14,3 +14,13 @@ variable "origin_secret" {
   type      = string
   sensitive = true
 }
+
+variable "domain" {
+  type    = string
+  default = null
+}
+
+variable "certificate_arn" {
+  type    = string
+  default = null
+}

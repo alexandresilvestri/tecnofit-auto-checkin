@@ -37,11 +37,15 @@ locals {
   auth_domain_prefix = "checkin-prod-${data.aws_caller_identity.current.account_id}"
 }
 
+data "aws_acm_certificate" "web" {
+  domain = "*.alexandresilvestri.com.br"
+}
+
 module "auth" {
   source               = "../../modules/auth"
   env                  = "prod"
   domain_prefix        = local.auth_domain_prefix
-  web_url              = module.frontend.web_url
+  web_urls             = module.frontend.web_urls
   artifacts_bucket     = local.artifacts_bucket
   artifact_version     = var.artifact_version
   api_id               = module.backend.api_id
@@ -78,4 +82,6 @@ module "frontend" {
   api_endpoint       = module.backend.api_endpoint
   auth_domain_prefix = local.auth_domain_prefix
   origin_secret      = module.backend.origin_secret
+  domain             = "checkin.alexandresilvestri.com.br"
+  certificate_arn    = data.aws_acm_certificate.web.arn
 }

@@ -6,8 +6,8 @@ variable "domain_prefix" {
   type = string
 }
 
-variable "web_url" {
-  type = string
+variable "web_urls" {
+  type = list(string)
 }
 
 variable "artifacts_bucket" {
