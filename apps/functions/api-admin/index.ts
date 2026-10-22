@@ -73,7 +73,7 @@ const invalidRequest = { message: "Requisição inválida." };
 const mapError = (err: unknown): [400 | 404 | 409 | 500, string] => {
   if (err instanceof InvalidAuditPeriod) return [400, invalidRequest.message];
   if (err instanceof InviteNotFound) return [404, "Convite não encontrado."];
-  if (err instanceof InviteNotPending) return [409, "O convite não está mais pendente."];
+  if (err instanceof InviteNotPending) return [409, "Só convites pendentes podem ser revogados."];
   if (err instanceof UserNotFound) return [404, "Usuário não encontrado."];
   return [500, "Erro inesperado."];
 };
