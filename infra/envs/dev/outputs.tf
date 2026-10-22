@@ -41,3 +41,15 @@ output "distribution_id" {
 output "web_url" {
   value = module.frontend.web_url
 }
+
+output "admin_user_pool_id" {
+  value = module.auth.user_pool_id
+}
+
+output "admin_client_id" {
+  value = module.auth.client_id
+}
+
+output "auth_domain" {
+  value = module.auth.domain_url
+}
