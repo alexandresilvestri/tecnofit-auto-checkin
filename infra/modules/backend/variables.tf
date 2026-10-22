@@ -29,3 +29,7 @@ variable "audit_table_name" {
 variable "audit_table_arn" {
   type = string
 }
+
+variable "alarm_email" {
+  type = string
+}

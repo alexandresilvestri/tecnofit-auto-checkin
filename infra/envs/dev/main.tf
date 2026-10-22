@@ -63,6 +63,7 @@ module "backend" {
   audit_table_name = module.data.audit_table_name
   audit_table_arn  = module.data.audit_table_arn
   token_key_arn    = module.data.token_key_arn
+  alarm_email      = "airtontunni@gmail.com"
 }
 
 module "data" {
