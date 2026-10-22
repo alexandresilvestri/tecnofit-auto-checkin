@@ -1,7 +1,27 @@
 import { X } from "lucide-react";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type MouseEvent, type ReactNode } from "react";
 
-export function Dialog({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: ReactNode }) {
+function closeOnBackdrop(e: MouseEvent<HTMLDialogElement>) {
+  if (e.target !== e.currentTarget) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) e.currentTarget.close();
+}
+
+export function Dialog({
+  open,
+  title,
+  onClose,
+  className = "m-auto w-[calc(100%-2rem)] max-w-lg rounded-4xl",
+  dismissable = false,
+  children,
+}: {
+  open: boolean;
+  title: string;
+  onClose: () => void;
+  className?: string;
+  dismissable?: boolean;
+  children: ReactNode;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -14,7 +34,8 @@ export function Dialog({ open, title, onClose, children }: { open: boolean; titl
     <dialog
       ref={ref}
       onClose={onClose}
-      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-4xl border border-line bg-canvas p-6 text-fg backdrop:bg-scrim/80"
+      onClick={dismissable ? closeOnBackdrop : undefined}
+      className={`border border-line bg-canvas p-6 text-fg backdrop:bg-scrim/80 ${className}`}
     >
       {open && (
         <>

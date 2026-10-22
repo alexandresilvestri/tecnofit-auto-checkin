@@ -6,6 +6,7 @@ import { Check } from "../ui/Check";
 import { Field } from "../ui/Field";
 import { Input } from "../ui/Input";
 import { PageHeader } from "../ui/PageHeader";
+import { Pending } from "../ui/Pending";
 import { ErrorText, Loading } from "../ui/Text";
 
 const token = location.hash.replace(/^#/, "");
@@ -70,6 +71,7 @@ export function Invite() {
       <Check id="consent" label="Li e concordo com o termo acima." checked={consent} onChange={(e) => setConsent(e.target.checked)} />
       {error && <ErrorText>{error}</ErrorText>}
       <Button type="submit" size="lg" disabled={!consent || busy}>Criar conta</Button>
+      {busy && <Pending title="Criando sua conta" />}
     </form>
   );
 }

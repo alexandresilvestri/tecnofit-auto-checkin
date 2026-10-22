@@ -77,6 +77,8 @@ test("convite, cadastro e agendamento semanal", async ({ page }) => {
   await expect(page).toHaveURL(/\/app$/);
   await expect(page.getByText("Nenhum agendamento.")).toBeVisible();
 
+  await page.getByRole("button", { name: "Menu" }).click();
+  await expect(page.getByRole("link", { name: "Agendamentos" })).toHaveAttribute("aria-current", "page");
   await page.getByRole("link", { name: "Novo" }).click();
   await page.getByRole("button", { name: "Buscar aulas" }).click();
   await page.getByLabel(/07:00 — CrossFit/).check();
@@ -96,6 +98,29 @@ test("convite, cadastro e agendamento semanal", async ({ page }) => {
   await card.getByRole("button", { name: "Excluir" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Excluir" }).click();
   await expect(page.getByText("Nenhum agendamento.")).toBeVisible();
+});
+
+test("tema pelo menu e espera ao buscar aulas", async ({ page }) => {
+  await mockApi(page);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/api/classes**", async (route) => {
+    await held;
+    await json(route, [{ name: "CrossFit", time: "07:00", count: 3, capacity: 15 }]);
+  });
+  await page.emulateMedia({ colorScheme: "dark" });
+
+  await page.goto("/app");
+  await page.getByRole("button", { name: "Menu" }).click();
+  await page.getByRole("button", { name: "Tema claro" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+
+  await page.getByRole("link", { name: "Novo" }).click();
+  await page.getByRole("button", { name: "Buscar aulas" }).click();
+  await expect(page.getByRole("status")).toContainText("Buscando aulas");
+  release();
+  await expect(page.getByRole("status")).toHaveCount(0);
+  await expect(page.getByLabel(/07:00 — CrossFit/)).toBeVisible();
 });
 
 test("histórico com carregar mais", async ({ page }) => {
@@ -121,5 +146,5 @@ test("login com erro genérico e sair", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Maria" })).toBeVisible();
   await page.getByRole("button", { name: "Sair" }).click();
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByRole("heading", { name: "Entrar" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Check-in automático" })).toBeVisible();
 });

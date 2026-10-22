@@ -3,7 +3,7 @@ import { errorMessage, post } from "../api";
 import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { Input } from "../ui/Input";
-import { PageHeader } from "../ui/PageHeader";
+import { Pending } from "../ui/Pending";
 import { ErrorText } from "../ui/Text";
 
 export function Login() {
@@ -27,7 +27,6 @@ export function Login() {
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
-      <PageHeader title="Entrar" />
       <Field label="E-mail" htmlFor="email">
         <Input id="email" size="lg" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
       </Field>
@@ -36,6 +35,7 @@ export function Login() {
       </Field>
       {error && <ErrorText>{error}</ErrorText>}
       <Button type="submit" size="lg" disabled={busy}>Entrar</Button>
+      {busy && <Pending title="Entrando" />}
     </form>
   );
 }

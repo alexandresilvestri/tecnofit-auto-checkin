@@ -4,9 +4,11 @@ export type Tab = { href: string; label: string; icon: LucideIcon };
 
 const path = location.pathname.replace(/\/$/, "");
 
+export const activeTab = (items: Tab[]) =>
+  items.filter((t) => path === t.href || path.startsWith(`${t.href}/`)).sort((a, b) => b.href.length - a.href.length)[0] ?? items[0];
+
 export function Tabs({ items }: { items: Tab[] }) {
-  const active =
-    items.filter((t) => path === t.href || path.startsWith(`${t.href}/`)).sort((a, b) => b.href.length - a.href.length)[0] ?? items[0];
+  const active = activeTab(items);
   return (
     <nav className="flex min-w-0 basis-full gap-1 overflow-x-auto sm:basis-auto">
       {items.map((t) => (

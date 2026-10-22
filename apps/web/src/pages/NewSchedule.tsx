@@ -5,6 +5,7 @@ import { Check } from "../ui/Check";
 import { Field } from "../ui/Field";
 import { Input } from "../ui/Input";
 import { PageHeader } from "../ui/PageHeader";
+import { Pending } from "../ui/Pending";
 import { WEEKDAYS } from "./Schedules";
 import { ErrorText } from "../ui/Text";
 
@@ -22,6 +23,7 @@ export function NewSchedule() {
   const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [searching, setSearching] = useState(false);
 
   function fail(e: unknown) {
     if (!guard(e)) setError(errorMessage(e));
@@ -31,10 +33,13 @@ export function NewSchedule() {
     setError("");
     setSelected(undefined);
     setClasses(undefined);
+    setSearching(true);
     try {
       setClasses(await get<Cls[]>(`/api/classes?date=${date}`));
     } catch (e) {
       fail(e);
+    } finally {
+      setSearching(false);
     }
   }
 
@@ -87,7 +92,7 @@ export function NewSchedule() {
             }}
           />
         </Field>
-        <Button variant="secondary" onClick={search} disabled={!date}>Buscar aulas</Button>
+        <Button variant="secondary" onClick={search} disabled={!date || searching}>Buscar aulas</Button>
       </div>
       {classes?.length === 0 && <p className="text-fg-muted">Nenhuma aula nesta data.</p>}
       {classes && classes.length > 0 && (
@@ -124,6 +129,8 @@ export function NewSchedule() {
       <Button type="submit" size="lg" disabled={!selected || busy || (weekly && weekdays.length === 0)}>
         Salvar
       </Button>
+      {searching && <Pending title="Buscando aulas" />}
+      {busy && <Pending title="Salvando agendamento" />}
     </form>
   );
 }
