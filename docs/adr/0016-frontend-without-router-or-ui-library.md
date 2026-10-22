@@ -5,13 +5,13 @@
 
 ## Context
 
-The SPA is small: a mobile-first user app and an admin panel. CloudFront serves it with a strict CSP (`default-src 'self'`), which blocks Google Fonts, CDNs and `data:` URLs. The visual redesign follows a dark design system.
+The SPA is small: a mobile-first user app and an admin panel. CloudFront serves it with a strict CSP (`default-src 'self'`), which blocks Google Fonts, CDNs and `data:` URLs. The visual redesign follows a dark design system, with a light variant.
 
 ## Decision
 
 - No router library: `apps/web/src/main.tsx` switches on `location.pathname`, and navigation is full-page.
 - No UI component library: native `<dialog>` and `<select>`, with small components in `apps/web/src/ui`.
-- Tailwind v4 with `@theme` tokens, dark theme only.
+- Tailwind v4 with `@theme` tokens; dark and light themes come from one token set.
 - Fonts are self-hosted through `@fontsource-variable` packages, so the CSP stays unchanged. Icons come from `lucide-react`.
 - The admin panel is a lazy-loaded chunk under `/admin`.
 

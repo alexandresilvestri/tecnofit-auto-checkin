@@ -14,7 +14,7 @@ export function Dialog({ open, title, onClose, children }: { open: boolean; titl
     <dialog
       ref={ref}
       onClose={onClose}
-      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-4xl border border-line bg-base p-6 text-fg backdrop:bg-scrim/80"
+      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-4xl border border-line bg-canvas p-6 text-fg backdrop:bg-scrim/80"
     >
       {open && (
         <>

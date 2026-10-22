@@ -1,3 +1,4 @@
+import "./theme";
 import { Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import { Account } from "./pages/Account";
