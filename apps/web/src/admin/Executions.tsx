@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react";
-import { STATUS_LABEL } from "../pages/Schedules";
+import { STATUS_LABEL, STATUS_TONE } from "../pages/Schedules";
+import { Stat, Stats } from "../ui/Stat";
+import { Badge } from "../ui/Badge";
+import { EmptyState } from "../ui/EmptyState";
+import { Field } from "../ui/Field";
+import { Input } from "../ui/Input";
+import { PageHeader } from "../ui/PageHeader";
+import { Select } from "../ui/Select";
+import { Table } from "../ui/Table";
 import { errorMessage, get } from "./api";
+import { ErrorText, Loading } from "../ui/Text";
 
 type Execution = {
   userId: string;
@@ -46,37 +55,47 @@ export function Executions() {
   const shown = items?.filter((i) => (!status || i.status === status) && (!term || nameOf(i.userId).toLowerCase().includes(term)));
 
   return (
-    <section>
-      <h1>Execuções</h1>
-      <div className="filters">
-        <label htmlFor="exec-date">Data</label>
-        <input id="exec-date" type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
-        <label htmlFor="exec-user">Usuário</label>
-        <input id="exec-user" type="text" value={user} onChange={(e) => setUser(e.target.value)} />
-        <label htmlFor="exec-status">Status</label>
-        <select id="exec-status" value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">Todos</option>
-          {Object.entries(STATUS_LABEL).map(([value, text]) => (
-            <option key={value} value={value}>{text}</option>
-          ))}
-        </select>
+    <section className="flex flex-col gap-4">
+      <PageHeader title="Execuções" />
+      <div className="flex flex-wrap items-end gap-2">
+        <Field label="Data" htmlFor="exec-date" className="w-44">
+          <Input id="exec-date" type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
+        </Field>
+        <Field label="Usuário" htmlFor="exec-user" className="min-w-60 flex-1">
+          <Input id="exec-user" type="text" search value={user} onChange={(e) => setUser(e.target.value)} />
+        </Field>
+        <Field label="Status" htmlFor="exec-status" className="w-48">
+          <Select id="exec-status" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">Todos</option>
+            {Object.entries(STATUS_LABEL).map(([value, text]) => (
+              <option key={value} value={value}>{text}</option>
+            ))}
+          </Select>
+        </Field>
       </div>
-      {error && <p role="alert" className="error">{error}</p>}
-      {!items && !error && <p>Carregando...</p>}
-      {items && (
-        <p>
-          {[...counts].map(([key, n]) => `${STATUS_LABEL[key] ?? key}: ${n}`).join(" · ") || "Nenhuma execução."}
-        </p>
+      {error && <ErrorText>{error}</ErrorText>}
+      {!items && !error && <Loading />}
+      {items && items.length > 0 && (
+        <Stats>
+          {[...counts].map(([key, n]) => (
+            <Stat key={key} label={STATUS_LABEL[key] ?? key}>{n}</Stat>
+          ))}
+        </Stats>
       )}
-      {shown?.map((i) => (
-        <article key={`${i.userId}-${i.scheduleId}`} className="item">
-          <h2>{i.startTime} — {i.className}</h2>
-          <p>
-            <a href={`/admin/usuarios/${i.userId}`}>{nameOf(i.userId)}</a> · {STATUS_LABEL[i.status] ?? i.status} · tentativas: {i.attempts}
-          </p>
-          {i.error && <p className="error">{i.error}</p>}
-        </article>
-      ))}
+      {items?.length === 0 && <EmptyState title="Nenhuma execução." text="Nada rodou nesta data." />}
+      {shown && shown.length > 0 && (
+        <Table head={["Aula", "Usuário", "Status", "Tentativas", "Erro"]}>
+          {shown.map((i) => (
+            <tr key={`${i.userId}-${i.scheduleId}`}>
+              <td className="text-fg-emphasis">{i.startTime} — {i.className}</td>
+              <td><a href={`/admin/usuarios/${i.userId}`}>{nameOf(i.userId)}</a></td>
+              <td><Badge tone={STATUS_TONE[i.status] ?? "neutral"}>{STATUS_LABEL[i.status] ?? i.status}</Badge></td>
+              <td>{i.attempts}</td>
+              <td className="text-error-11">{i.error ?? "—"}</td>
+            </tr>
+          ))}
+        </Table>
+      )}
     </section>
   );
 }

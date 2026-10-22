@@ -6,11 +6,12 @@ import { Invite } from "./pages/Invite";
 import { Login } from "./pages/Login";
 import { NewSchedule } from "./pages/NewSchedule";
 import { Schedules } from "./pages/Schedules";
+import { AdminShell, AppShell, AuthShell } from "./shell/Shell";
 import "./styles.css";
+import { Loading } from "./ui/Text";
 
 const pages: Record<string, () => React.JSX.Element> = {
   "/": Schedules,
-  "/convite": Invite,
   "/app": Schedules,
   "/app/novo": NewSchedule,
   "/app/historico": History,
@@ -23,15 +24,13 @@ const root = createRoot(document.getElementById("root")!);
 
 if (location.pathname.startsWith("/admin")) {
   root.render(
-    <Suspense fallback={<main className="card"><p>Carregando...</p></main>}>
+    <Suspense fallback={<AdminShell><Loading /></AdminShell>}>
       <Admin />
     </Suspense>,
   );
+} else if (location.pathname === "/convite") {
+  root.render(<AuthShell><Invite /></AuthShell>);
 } else {
-  const Page = pages[location.pathname] ?? Login;
-  root.render(
-    <main className="card">
-      <Page />
-    </main>,
-  );
+  const Page = pages[location.pathname];
+  root.render(Page ? <AppShell><Page /></AppShell> : <AuthShell><Login /></AuthShell>);
 }
