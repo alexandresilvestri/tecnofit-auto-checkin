@@ -1,6 +1,6 @@
 import { writeAudit } from "../audit/audit.js";
 import { decryptToken, encryptToken } from "../crypto/token.js";
-import { listSchedules, recreateSchedule, type ScheduleDeps } from "./schedules.js";
+import { enableSchedule, listSchedules, recreateSchedule, type ScheduleDeps } from "./schedules.js";
 import { deleteUser } from "./users.js";
 
 export type MigrateDeps = ScheduleDeps & { keyId: string };
@@ -25,18 +25,21 @@ export async function migrateUser(from: MigrateDeps, to: MigrateDeps, userId: st
     const schedules = await listSchedules(from.entities, userId);
     for (const row of schedules) {
       await to.entities.schedule.put(row).go();
-      await recreateSchedule(to, row);
+      await recreateSchedule(to, row, "DISABLED");
     }
 
     const executions = (await from.entities.execution.query.byUser({ userId }).go({ pages: "all" })).data;
     if (executions.length > 0) assertWritten(await to.entities.execution.put(executions).go());
 
-    await to.entities.profile.put(profile).go();
     await writeAudit(
       to.entities,
       { actorType: "cli", actorId: "cli", action: "user.migrated", targetType: "user", targetId: userId, result: "success" },
       now,
     );
+    await to.entities.profile.put(profile).go();
+  }
+  if ((await from.entities.profile.get({ userId }).go()).data) {
+    for (const row of await listSchedules(to.entities, userId)) if (row.active) await enableSchedule(to, row);
   }
   await deleteUser(from, userId);
 }
