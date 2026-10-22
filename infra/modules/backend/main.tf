@@ -1,3 +1,7 @@
+data "aws_region" "current" {}
+
+data "aws_caller_identity" "current" {}
+
 locals {
   worker_name = "checkin-${var.env}-checkin-worker"
 
@@ -33,19 +37,47 @@ locals {
     }
     api-user = {
       env = {
-        TABLE_MAIN  = var.main_table_name
-        TABLE_AUDIT = var.audit_table_name
+        TABLE_MAIN         = var.main_table_name
+        TABLE_AUDIT        = var.audit_table_name
+        SCHEDULE_GROUP     = aws_scheduler_schedule_group.this.name
+        WORKER_ARN         = aws_lambda_function.worker.arn
+        SCHEDULER_ROLE_ARN = aws_iam_role.scheduler.arn
       }
       statements = [
         {
           Effect   = "Allow"
-          Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query"]
-          Resource = var.main_table_arn
+          Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:BatchWriteItem"]
+          Resource = [var.main_table_arn, "${var.main_table_arn}/index/*"]
         },
         {
           Effect   = "Allow"
           Action   = "dynamodb:PutItem"
           Resource = var.audit_table_arn
+        },
+        {
+          Effect   = "Allow"
+          Action   = "kms:Decrypt"
+          Resource = var.token_key_arn
+          Condition = {
+            "ForAnyValue:StringEquals" = {
+              "kms:EncryptionContextKeys" = "userId"
+            }
+          }
+        },
+        {
+          Effect   = "Allow"
+          Action   = ["scheduler:CreateSchedule", "scheduler:UpdateSchedule", "scheduler:DeleteSchedule"]
+          Resource = "arn:aws:scheduler:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:schedule/checkin-${var.env}/*"
+        },
+        {
+          Effect   = "Allow"
+          Action   = "iam:PassRole"
+          Resource = aws_iam_role.scheduler.arn
+          Condition = {
+            StringEquals = {
+              "iam:PassedToService" = "scheduler.amazonaws.com"
+            }
+          }
         }
       ]
     }
@@ -65,12 +97,19 @@ locals {
   }
 
   routes = {
-    "GET /api/health"         = "api-public"
-    "POST /api/invites/check" = "api-public"
-    "POST /api/onboarding"    = "api-public"
-    "POST /api/auth/login"    = "api-public"
-    "GET /api/me"             = "api-user"
-    "POST /api/auth/logout"   = "api-user"
+    "GET /api/health"            = "api-public"
+    "POST /api/invites/check"    = "api-public"
+    "POST /api/onboarding"       = "api-public"
+    "POST /api/auth/login"       = "api-public"
+    "GET /api/me"                = "api-user"
+    "POST /api/auth/logout"      = "api-user"
+    "GET /api/classes"           = "api-user"
+    "GET /api/schedules"         = "api-user"
+    "POST /api/schedules"        = "api-user"
+    "PATCH /api/schedules/{id}"  = "api-user"
+    "DELETE /api/schedules/{id}" = "api-user"
+    "GET /api/executions"        = "api-user"
+    "DELETE /api/me"             = "api-user"
   }
 }
 
