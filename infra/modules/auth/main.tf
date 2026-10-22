@@ -105,6 +105,10 @@ resource "aws_cognito_user_pool" "this" {
     allow_admin_create_user_only = true
   }
 
+  username_configuration {
+    case_sensitive = false
+  }
+
   password_policy {
     minimum_length    = 14
     require_lowercase = true
