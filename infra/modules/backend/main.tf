@@ -2,15 +2,21 @@ data "aws_region" "current" {}
 
 data "aws_caller_identity" "current" {}
 
+resource "random_password" "origin" {
+  length  = 48
+  special = false
+}
+
 locals {
   worker_name = "checkin-${var.env}-checkin-worker"
 
   api_functions = {
     api-public = {
       env = {
-        TABLE_MAIN  = var.main_table_name
-        TABLE_AUDIT = var.audit_table_name
-        KMS_KEY_ID  = var.token_key_arn
+        ORIGIN_SECRET = random_password.origin.result
+        TABLE_MAIN    = var.main_table_name
+        TABLE_AUDIT   = var.audit_table_name
+        KMS_KEY_ID    = var.token_key_arn
       }
       statements = [
         {
@@ -37,6 +43,7 @@ locals {
     }
     api-user = {
       env = {
+        ORIGIN_SECRET      = random_password.origin.result
         TABLE_MAIN         = var.main_table_name
         TABLE_AUDIT        = var.audit_table_name
         SCHEDULE_GROUP     = aws_scheduler_schedule_group.this.name
@@ -83,6 +90,7 @@ locals {
     }
     api-admin = {
       env = {
+        ORIGIN_SECRET      = random_password.origin.result
         TABLE_MAIN         = var.main_table_name
         TABLE_AUDIT        = var.audit_table_name
         SCHEDULE_GROUP     = aws_scheduler_schedule_group.this.name
@@ -119,8 +127,9 @@ locals {
     }
     authorizer-user = {
       env = {
-        TABLE_MAIN  = var.main_table_name
-        TABLE_AUDIT = var.audit_table_name
+        ORIGIN_SECRET = random_password.origin.result
+        TABLE_MAIN    = var.main_table_name
+        TABLE_AUDIT   = var.audit_table_name
       }
       statements = [
         {
@@ -356,7 +365,7 @@ resource "aws_apigatewayv2_authorizer" "user" {
   authorizer_uri                    = aws_lambda_function.api["authorizer-user"].invoke_arn
   authorizer_payload_format_version = "2.0"
   enable_simple_responses           = true
-  identity_sources                  = ["$request.header.Cookie"]
+  identity_sources                  = ["$request.header.Cookie", "$request.header.X-Origin-Verify"]
   authorizer_result_ttl_in_seconds  = 60
 }
 

@@ -12,6 +12,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "= 6.69.1"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "3.7.2"
+    }
   }
 }
 
@@ -71,4 +75,5 @@ module "frontend" {
   env                = "dev"
   api_endpoint       = module.backend.api_endpoint
   auth_domain_prefix = local.auth_domain_prefix
+  origin_secret      = module.backend.origin_secret
 }

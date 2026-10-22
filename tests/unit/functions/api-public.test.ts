@@ -23,6 +23,7 @@ beforeAll(async () => {
   vi.stubEnv("TABLE_MAIN", "checkin-test-main");
   vi.stubEnv("TABLE_AUDIT", "checkin-test-audit");
   vi.stubEnv("KMS_KEY_ID", "key-1");
+  vi.stubEnv("ORIGIN_SECRET", "s3cret");
   vi.stubEnv("POWERTOOLS_LOG_LEVEL", "SILENT");
   ({ handler } = await import("../../../apps/functions/api-public/index"));
   errors = { ...(await vi.importActual<object>("@checkin/core/domain/invites")), ...(await vi.importActual<object>("@checkin/core/domain/sessions")) } as typeof errors;
@@ -37,7 +38,7 @@ const send = (method: string, path: string, body?: unknown, headers: Record<stri
     routeKey: "$default",
     rawPath: path,
     rawQueryString: "",
-    headers: { "content-type": "application/json", ...headers },
+    headers: { "content-type": "application/json", "x-origin-verify": "s3cret", ...headers },
     requestContext: {
       http: { method, path, protocol: "HTTP/1.1", sourceIp: "1.2.3.4", userAgent: "ua-test" },
     },
@@ -47,6 +48,18 @@ const send = (method: string, path: string, body?: unknown, headers: Record<stri
 
 const onboarding = { token: "t", email: "a@b.co", password: "pw", consentVersion: "2026-10-21" };
 const login = { email: "a@b.co", password: "pw" };
+
+it.each([[{ "x-origin-verify": "wrong" }], [{ "x-origin-verify": "" }]])("rejects origin header %j with 403", async (headers) => {
+  const res = await send("GET", "/api/health", undefined, headers);
+  expect(res.statusCode).toBe(403);
+  expect(JSON.parse(res.body)).toEqual({ message: "Acesso negado." });
+});
+
+it("checks origin before CSRF", async () => {
+  const res = await send("POST", "/api/auth/login", login, { "x-origin-verify": "wrong" });
+  expect(JSON.parse(res.body)).toEqual({ message: "Acesso negado." });
+  expect(sessions.loginUser).not.toHaveBeenCalled();
+});
 
 it("health returns ok", async () => {
   const res = await send("GET", "/api/health", undefined, {});

@@ -3,6 +3,7 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { KMSClient } from "@aws-sdk/client-kms";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { createEntities } from "@checkin/core/db/entities";
+import { fromCloudFront } from "@checkin/core/http/origin";
 import { AccountExists, InvalidCredentials, InviteInvalid, checkInvite, redeemInvite, requestMeta } from "@checkin/core/domain/invites";
 import { LoginLocked, SESSION_COOKIE, loginUser } from "@checkin/core/domain/sessions";
 import { TecnofitError, TecnofitInvalidResponse } from "@checkin/core/tecnofit/client";
@@ -52,6 +53,10 @@ const mapError = (err: unknown): [400 | 401 | 409 | 410 | 429 | 500 | 502, strin
 const app = new Hono<Env>();
 
 app.use("*", async (c, next) => {
+  if (!fromCloudFront(c.req.header("x-origin-verify"), process.env.ORIGIN_SECRET!)) {
+    logger.info("request", { route: c.req.path, status: 403 });
+    return c.json({ message: "Acesso negado." }, 403);
+  }
   if (c.req.method === "POST" && c.req.header("x-requested-with") !== "fetch") {
     logger.info("request", { route: c.req.path, status: 403 });
     return c.json(invalidRequest, 403);

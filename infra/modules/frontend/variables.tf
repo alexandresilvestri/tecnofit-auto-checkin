@@ -9,3 +9,8 @@ variable "api_endpoint" {
 variable "auth_domain_prefix" {
   type = string
 }
+
+variable "origin_secret" {
+  type      = string
+  sensitive = true
+}

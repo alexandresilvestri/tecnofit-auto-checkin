@@ -43,6 +43,7 @@ beforeAll(async () => {
   vi.stubEnv("SCHEDULE_GROUP", "grp");
   vi.stubEnv("WORKER_ARN", "arn:worker");
   vi.stubEnv("SCHEDULER_ROLE_ARN", "arn:role");
+  vi.stubEnv("ORIGIN_SECRET", "s3cret");
   vi.stubEnv("POWERTOOLS_LOG_LEVEL", "SILENT");
   ({ handler } = await import("../../../apps/functions/api-user/index"));
 });
@@ -64,7 +65,7 @@ const send = (
     rawPath: path,
     rawQueryString: extra.query ?? "",
     cookies: ["sid=tok"],
-    headers,
+    headers: { "x-origin-verify": "s3cret", ...headers },
     body: extra.body === undefined ? undefined : JSON.stringify(extra.body),
     requestContext: {
       http: { method, path, protocol: "HTTP/1.1", sourceIp: "1.2.3.4", userAgent: "ua-test" },
@@ -72,6 +73,13 @@ const send = (
     },
     isBase64Encoded: false,
   } as never) as Promise<{ statusCode: number; body: string; cookies?: string[] }>;
+
+it.each([[{ "x-origin-verify": "wrong" }], [{ "x-origin-verify": "" }]])("rejects origin header %j with 403", async (headers) => {
+  const res = await send("GET", "/api/me", headers);
+  expect(res.statusCode).toBe(403);
+  expect(JSON.parse(res.body)).toEqual({ message: "Acesso negado." });
+  expect(ddb.calls()).toHaveLength(0);
+});
 
 const profile = {
   __edb_e__: "profile",
