@@ -33,5 +33,5 @@ if (location.pathname.startsWith("/admin")) {
   root.render(<AuthShell><Invite /></AuthShell>);
 } else {
   const Page = pages[location.pathname];
-  root.render(Page ? <AppShell><Page /></AppShell> : <AuthShell><Login /></AuthShell>);
+  root.render(Page ? <AppShell><Page /></AppShell> : <AuthShell title="Check-in automático"><Login /></AuthShell>);
 }
