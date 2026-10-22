@@ -49,7 +49,7 @@ Sintoma: alarme `checkin-<env>-checkin-failed` e execuções com erro `invalid_r
    ```bash
    CHECKIN_ENV=<env> npm run schedule -- classes --user <userId> --date <YYYY-MM-DD>
    ```
-3. Ajustar o schema zod em `packages/core/tecnofit/client.ts` e os fixtures de teste (`tests/fixtures`).
+3. Ajustar o schema zod em `packages/core/tecnofit/client.ts` e os fixtures de teste (`tests/fixtures/tecnofit`).
 4. `npm run test:unit && npm run test:integration`, abrir PR, merge (deploy no dev), validar no dev e então `promote.yml` com o `sha`.
 
 Check-ins perdidos durante a falha não são refeitos sozinhos; avise os usuários afetados.
@@ -68,7 +68,7 @@ aws dynamodb scan --table-name checkin-<env>-main --region us-east-1 \
   --projection-expression 'PK,SK'
 ```
 
-Ação: avisar os usuários para entrar de novo no app com o login Tecnofit (a conta volta a `active`). Se a causa for mudança na API de login, veja a seção anterior.
+Ação: avisar os usuários para entrar de novo no app com o login Tecnofit (a conta volta a `ok`). Se a causa for mudança na API de login, veja a seção anterior.
 
 ## Restauração via PITR
 
@@ -85,21 +85,24 @@ As duas tabelas têm PITR. Não existe script de restauração em massa; o proce
    Use `--use-latest-restorable-time` no lugar de `--restore-date-time` para o ponto mais recente.
 2. Conferir o conteúdo (`aws dynamodb scan --table-name checkin-<env>-main-restore --select COUNT`, ou itens específicos com `get-item`/`query`).
 3. Copiar os itens necessários para `checkin-<env>-main` (`scan` na restaurada, `put-item`/`batch-write-item` na original), só o que falta ou foi perdido.
-4. Recriar os schedules do EventBridge: schedules vivem fora do DynamoDB e não voltam com o restore. A função `recreateSchedule` (`packages/core/domain/schedules.ts`) recria um schedule a partir da linha `schedule`, mas não há script que a chame em lote; escreva um script temporário com `tsx` baseado em `scripts/migrate.ts` (que usa `recreateSchedule` por usuário) ou recrie com `CHECKIN_ENV=<env> npm run schedule -- add ...`. Confira com `npm run schedule -- list --user <userId>` ou `aws scheduler list-schedules --group-name checkin-<env>`.
+4. Recriar os schedules do EventBridge: schedules vivem fora do DynamoDB e não voltam com o restore. A função `recreateSchedule` (`packages/core/domain/schedules.ts`) recria um schedule a partir da linha `schedule`, mas não há script que a chame em lote; escreva um script temporário com `tsx` baseado em `scripts/migrate.ts` (que usa `recreateSchedule` por usuário) ou recrie com `CHECKIN_ENV=<env> npm run schedule -- add ...`. Confira com `npm run schedule -- list --user <userId>` ou `aws scheduler list-schedules --region us-east-1 --group-name checkin-<env>`.
 5. Apagar a tabela temporária (`aws dynamodb delete-table --table-name checkin-<env>-main-restore`); ela nasce sem deletion protection.
 
 ## Rotação do segredo de origem
 
 O segredo é `random_password.origin` (`module.backend.random_password.origin`). O CloudFront o envia no header `X-Origin-Verify` e as Lambdas o validam. Trocar o valor atualiza CloudFront e Lambdas na mesma aplicação.
 
-Pelo HCP: workspace `checkin-<env>` → New run → marque "Replace" no recurso `module.backend.random_password.origin` → Plan and apply → confirmar.
+Pelo HCP (preferido; descrito a partir da documentação do HCP, não validado): workspace `checkin-<env>` → New run → em "Replace" selecione `module.backend.random_password.origin` → Start run → confirmar o apply.
 
-Ou local (após `terraform login`, `cd infra/envs/<env>`, com `artifact_version` definido como no release):
+Local (alternativa, após `terraform login`):
 
 ```bash
+cd infra/envs/<env>
 terraform init
-terraform apply -replace=module.backend.random_password.origin
+terraform apply -replace=module.backend.random_password.origin -var artifact_version=<sha atual>
 ```
+
+Atenção: um apply local em prod ignora a aprovação do Environment `prod` do GitHub; use só com intenção explícita.
 
 Esperado: janela curta de respostas 403 em `/api/*` até o CloudFront propagar a nova configuração (alguns minutos). Verificar:
 
@@ -144,37 +147,33 @@ aws cognito-idp admin-reset-user-password --region us-east-1 \
   --user-pool-id $POOL --username <email>
 ```
 
-MFA perdido: tentar redefinir o dispositivo (o usuário cadastra um novo no próximo login):
-
-```bash
-aws cognito-idp admin-set-user-mfa-preference --region us-east-1 \
-  --user-pool-id $POOL --username <email> \
-  --software-token-mfa-settings Enabled=false,PreferredMfa=false
-```
-
-Se não resolver, apagar e recriar o usuário (2 comandos de criação):
+MFA perdido: a correção confiável é apagar o usuário e recriá-lo com os 2 comandos abaixo.
 
 ```bash
 aws cognito-idp admin-delete-user --region us-east-1 --user-pool-id $POOL --username <email>
 
-aws cognito-idp admin-create-user --region us-east-1 --user-pool-id $POOL --username <email> \
-  --user-attributes Name=email,Value=<email> Name=email_verified,Value=true \
-  --desired-delivery-mediums EMAIL
-aws cognito-idp admin-set-user-password --region us-east-1 --user-pool-id $POOL --username <email> \
-  --password '<senha com 14+ caracteres, maiúscula, minúscula, número e símbolo>' --permanent
+aws cognito-idp admin-create-user --region us-east-1 --user-pool-id $POOL --username <email> --user-attributes Name=email,Value=<email> Name=email_verified,Value=true
+aws cognito-idp admin-add-user-to-group --region us-east-1 --user-pool-id $POOL --username <email> --group-name admin
 ```
 
-No primeiro login o app pede o cadastro do MFA. Não conferi estes comandos contra uma conta real; valide em dev antes de usar em prod.
+A senha temporária chega por e-mail; o primeiro login pede nova senha e o cadastro do TOTP.
+
+Alternativa não validada: `aws cognito-idp admin-set-user-mfa-preference --region us-east-1 --user-pool-id $POOL --username <email> --software-token-mfa-settings Enabled=false,PreferredMfa=false`.
 
 ## Destruir um ambiente
 
-Destruir apaga os dados. Faça um backup se precisar (ver PITR) antes.
+Destruir apaga os dados de forma irreversível: a chave KMS entra em exclusão agendada (período de espera) e, sem ela, os tokens cifrados não podem ser recuperados. Faça backup antes se precisar (ver PITR).
 
-1. Desligar as proteções (elas bloqueiam o destroy):
+1. Desligar as proteções (bloqueiam o destroy):
    - DynamoDB: `deletion_protection_enabled = false` nas duas tabelas em `infra/modules/data/main.tf`.
    - Cognito: `deletion_protection = "INACTIVE"` em `infra/modules/auth/main.tf`.
-2. Aplicar essa mudança no ambiente (PR → merge → dev; para prod, `promote.yml`) e confirmar que o apply passou.
-3. No HCP: workspace `checkin-<env>` → Settings → Destruction and Deletion → Queue destroy plan → confirmar.
-4. O grupo de schedules `checkin-<env>` é removido junto e apaga todos os schedules dele.
-5. Se o bucket do SPA ou o state tiverem objetos, esvazie e repita se o destroy falhar.
-6. Para remover também o workspace e o ambiente do GitHub, faça-o manualmente no HCP e em Settings → Environments.
+
+   Esses módulos são compartilhados: a mudança vale para dev e prod no próximo apply de cada um. Reverta (reative as proteções) logo depois do destroy, ou antes de aplicar no outro ambiente.
+2. Aplicar a mudança no ambiente (PR → merge → dev; prod via `promote.yml`) e confirmar o apply.
+3. Esvaziar o bucket do SPA (`web_bucket` está nos outputs do workspace `checkin-<env>` no HCP):
+   ```bash
+   aws s3 rm s3://<web_bucket> --recursive
+   ```
+4. No HCP: workspace `checkin-<env>` → Settings → Destruction and Deletion → Queue destroy plan → confirmar.
+5. O grupo de schedules `checkin-<env>` é removido junto e apaga todos os schedules dele.
+6. Remover o workspace no HCP e o Environment em Settings → Environments do GitHub, se for o caso.
