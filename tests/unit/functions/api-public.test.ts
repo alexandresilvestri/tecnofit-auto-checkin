@@ -156,3 +156,33 @@ it("onboarding maps domain errors", async () => {
   expect(res.statusCode).toBe(410);
   expect(JSON.parse(res.body)).toEqual({ message: "Convite inválido ou expirado." });
 });
+
+it("failed login never logs the password nor the e-mail", async () => {
+  vi.stubEnv("POWERTOOLS_LOG_LEVEL", "DEBUG");
+  vi.resetModules();
+  const out: string[] = [];
+  const spies = (["stdout", "stderr"] as const).map((stream) =>
+    vi.spyOn(process[stream], "write").mockImplementation((chunk) => (out.push(String(chunk)), true)),
+  );
+  const { handler: loud } = await import("../../../apps/functions/api-public/index");
+  sessions.loginUser.mockRejectedValue(new errors.InvalidCredentials());
+  const body = { email: "victim.person@example.com", password: "Sup3rS3cretPw!" };
+  const res = await (loud({
+    version: "2.0",
+    routeKey: "$default",
+    rawPath: "/api/auth/login",
+    rawQueryString: "",
+    headers: { "content-type": "application/json", "x-origin-verify": "s3cret", "x-requested-with": "fetch" },
+    requestContext: { http: { method: "POST", path: "/api/auth/login", protocol: "HTTP/1.1", sourceIp: "1.2.3.4", userAgent: "ua-test" } },
+    body: JSON.stringify(body),
+    isBase64Encoded: false,
+  } as never) as Promise<{ statusCode: number }>);
+  spies.forEach((s) => s.mockRestore());
+  vi.stubEnv("POWERTOOLS_LOG_LEVEL", "SILENT");
+  expect(res.statusCode).toBe(401);
+  const text = out.join("\n");
+  expect(text).toContain("request failed");
+  expect(text).not.toContain(body.password);
+  expect(text).not.toContain(body.email);
+  expect(text).not.toContain("victim.person");
+});
