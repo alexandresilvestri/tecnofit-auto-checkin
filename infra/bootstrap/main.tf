@@ -172,10 +172,20 @@ resource "aws_iam_role_policy" "hcp_dev_deny_prod" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "DenyProdByName"
-        Effect   = "Deny"
-        Action   = "*"
-        Resource = "arn:aws:*:*:*:*checkin-prod*"
+        Sid    = "DenyProdByName"
+        Effect = "Deny"
+        Action = "*"
+        Resource = [
+          "arn:aws:lambda:*:*:*checkin-prod*",
+          "arn:aws:dynamodb:*:*:*checkin-prod*",
+          "arn:aws:logs:*:*:*checkin-prod*",
+          "arn:aws:s3:::*checkin-prod*",
+          "arn:aws:sns:*:*:*checkin-prod*",
+          "arn:aws:scheduler:*:*:*checkin-prod*",
+          "arn:aws:cloudwatch:*:*:*checkin-prod*",
+          "arn:aws:cloudfront::*:*checkin-prod*",
+          "arn:aws:iam::*:*checkin-prod*",
+        ]
       },
       {
         Sid       = "DenyProdByTag"
