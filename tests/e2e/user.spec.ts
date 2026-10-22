@@ -63,7 +63,6 @@ async function mockApi(page: Page) {
 
 test("convite, cadastro e agendamento semanal", async ({ page }) => {
   await mockApi(page);
-  page.on("dialog", (dialog) => dialog.accept());
 
   await page.goto("/convite#tok123");
   await expect(page.getByRole("heading", { name: "Criar conta" })).toBeVisible();
@@ -95,6 +94,7 @@ test("convite, cadastro e agendamento semanal", async ({ page }) => {
   await expect(card).toContainText("Ativo");
 
   await card.getByRole("button", { name: "Excluir" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Excluir" }).click();
   await expect(page.getByText("Nenhum agendamento.")).toBeVisible();
 });
 

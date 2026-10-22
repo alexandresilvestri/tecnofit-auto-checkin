@@ -1,7 +1,12 @@
 import { useState, type SubmitEvent } from "react";
 import { errorMessage, get, guard, post } from "../api";
-import { Nav } from "../Nav";
+import { Button } from "../ui/Button";
+import { Check } from "../ui/Check";
+import { Field } from "../ui/Field";
+import { Input } from "../ui/Input";
+import { PageHeader } from "../ui/PageHeader";
 import { WEEKDAYS } from "./Schedules";
+import { ErrorText } from "../ui/Text";
 
 type Cls = { name: string; time: string; count: number; capacity: number };
 
@@ -64,85 +69,61 @@ export function NewSchedule() {
   }
 
   return (
-    <form onSubmit={submit}>
-      <Nav />
-      <h1>Novo agendamento</h1>
-      <label htmlFor="date">Data</label>
-      <input
-        id="date"
-        type="date"
-        required
-        value={date}
-        onChange={(e) => {
-          setDate(e.target.value);
-          setWeekly(false);
-          setWeekdays([]);
-          setClasses(undefined);
-          setSelected(undefined);
-        }}
-      />
-      <button type="button" onClick={search} disabled={!date}>Buscar aulas</button>
-      {classes?.length === 0 && <p>Nenhuma aula nesta data.</p>}
+    <form onSubmit={submit} className="flex flex-col gap-4">
+      <PageHeader title="Novo agendamento" />
+      <div className="flex items-end gap-2">
+        <Field label="Data" htmlFor="date" className="flex-1">
+          <Input
+            id="date"
+            type="date"
+            required
+            value={date}
+            onChange={(e) => {
+              setDate(e.target.value);
+              setWeekly(false);
+              setWeekdays([]);
+              setClasses(undefined);
+              setSelected(undefined);
+            }}
+          />
+        </Field>
+        <Button variant="secondary" onClick={search} disabled={!date}>Buscar aulas</Button>
+      </div>
+      {classes?.length === 0 && <p className="text-fg-muted">Nenhuma aula nesta data.</p>}
       {classes && classes.length > 0 && (
-        <fieldset>
-          <legend>Aula</legend>
+        <fieldset className="flex flex-col gap-1">
+          <legend className="mb-2 text-sm/5 text-fg">Aula</legend>
           {classes.map((c) => (
-            <label key={`${c.time}-${c.name}`} className="check" htmlFor={`c-${c.time}-${c.name}`}>
-              <input
-                id={`c-${c.time}-${c.name}`}
-                type="radio"
-                name="class"
-                checked={selected === c}
-                onChange={() => setSelected(c)}
-              />
-              {c.time} — {c.name} ({c.count}/{c.capacity})
+            <label
+              key={`${c.time}-${c.name}`}
+              className="flex h-10 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm/5 text-fg-emphasis hover:bg-interactive"
+              htmlFor={`c-${c.time}-${c.name}`}
+            >
+              <input id={`c-${c.time}-${c.name}`} type="radio" name="class" checked={selected === c} onChange={() => setSelected(c)} />
+              {c.time} — {c.name} <span className="text-fg-muted">({c.count}/{c.capacity})</span>
             </label>
           ))}
         </fieldset>
       )}
       {selected && (
         <>
-          <label className="check" htmlFor="weekly">
-            <input
-              id="weekly"
-              type="checkbox"
-              checked={weekly}
-              onChange={(e) => toggleWeekly(e.target.checked)}
-            />
-            Toda semana
-          </label>
+          <Check id="weekly" label="Toda semana" checked={weekly} onChange={(e) => toggleWeekly(e.target.checked)} />
           {weekly && (
-            <fieldset>
-              <legend>Dias</legend>
+            <fieldset className="flex flex-wrap gap-3">
+              <legend className="mb-2 text-sm/5 text-fg">Dias</legend>
               {WEEKDAYS.map((label, day) => (
-                <label key={label} className="check" htmlFor={`d-${day}`}>
-                  <input
-                    id={`d-${day}`}
-                    type="checkbox"
-                    checked={weekdays.includes(day)}
-                    onChange={(e) => toggleDay(day, e.target.checked)}
-                  />
-                  {label}
-                </label>
+                <Check key={label} id={`d-${day}`} label={label} checked={weekdays.includes(day)} onChange={(e) => toggleDay(day, e.target.checked)} />
               ))}
             </fieldset>
           )}
-          {!weekly && <p>Só neste dia</p>}
-          <label className="check" htmlFor="waiting">
-            <input
-              id="waiting"
-              type="checkbox"
-              checked={waiting}
-              onChange={(e) => setWaiting(e.target.checked)}
-            />
-            Lista de espera
-          </label>
+          {!weekly && <p className="text-fg-muted">Só neste dia</p>}
+          <Check id="waiting" label="Lista de espera" checked={waiting} onChange={(e) => setWaiting(e.target.checked)} />
         </>
       )}
-      {error && <p role="alert" className="error">{error}</p>}
-      <button type="submit" disabled={!selected || busy || (weekly && weekdays.length === 0)}>
+      {error && <ErrorText>{error}</ErrorText>}
+      <Button type="submit" size="lg" disabled={!selected || busy || (weekly && weekdays.length === 0)}>
         Salvar
-      </button>
+      </Button>
     </form>
   );
 }

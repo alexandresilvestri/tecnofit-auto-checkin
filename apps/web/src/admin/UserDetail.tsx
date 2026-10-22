@@ -1,7 +1,17 @@
 import { useEffect, useState } from "react";
-import { STATUS_LABEL, WEEKDAYS, fullDate, stamp } from "../pages/Schedules";
+import { STATUS_LABEL, STATUS_TONE, WEEKDAYS, fullDate, stamp } from "../pages/Schedules";
+import { Stat, Stats } from "../ui/Stat";
+import { Badge } from "../ui/Badge";
+import { Button } from "../ui/Button";
+import { Card } from "../ui/Card";
+import { Dialog } from "../ui/Dialog";
+import { Field } from "../ui/Field";
+import { Input } from "../ui/Input";
+import { PageHeader } from "../ui/PageHeader";
+import { Table } from "../ui/Table";
 import { del, errorMessage, get, post } from "./api";
 import { USER_STATUS } from "./Users";
+import { ErrorText, Loading } from "../ui/Text";
 
 type Detail = {
   profile: { userId: string; name: string; email: string; status: string; createdAt: string };
@@ -21,7 +31,6 @@ type Detail = {
   audit: { at: string; action: string; actorType: string; result: string; metadata?: unknown }[];
 };
 
-
 function Destructive({
   label,
   name,
@@ -38,37 +47,34 @@ function Destructive({
   const trimmed = reason.trim();
   const ready = !busy && typed === name && trimmed.length >= 1 && trimmed.length <= 200;
 
-  if (!open) {
-    return (
-      <button type="button" className="danger-btn" onClick={() => setOpen(true)}>
-        {label}
-      </button>
-    );
-  }
   return (
-    <form
-      className="danger"
-      onSubmit={(e) => {
-        e.preventDefault();
-        setBusy(true);
-        onConfirm(trimmed).finally(() => setBusy(false));
-      }}
-    >
-      <label htmlFor={`name-${label}`}>Digite o nome do usuário: {name}</label>
-      <input id={`name-${label}`} type="text" value={typed} onChange={(e) => setTyped(e.target.value)} />
-      <label htmlFor={`reason-${label}`}>Motivo (até 200 caracteres)</label>
-      <input
-        id={`reason-${label}`}
-        type="text"
-        maxLength={200}
-        value={reason}
-        onChange={(e) => setReason(e.target.value)}
-      />
-      <div className="actions">
-        <button type="submit" disabled={!ready}>Confirmar {label.toLowerCase()}</button>
-        <button type="button" className="secondary" onClick={() => setOpen(false)}>Cancelar</button>
-      </div>
-    </form>
+    <>
+      <Button variant="danger" onClick={() => setOpen(true)}>{label}</Button>
+      <Dialog open={open} title={`${label} usuário`} onClose={() => setOpen(false)}>
+          <form
+            className="flex flex-col gap-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setBusy(true);
+              onConfirm(trimmed).finally(() => {
+                setBusy(false);
+                setOpen(false);
+              });
+            }}
+          >
+            <Field label={`Digite o nome do usuário: ${name}`} htmlFor={`name-${label}`}>
+              <Input id={`name-${label}`} type="text" value={typed} onChange={(e) => setTyped(e.target.value)} />
+            </Field>
+            <Field label="Motivo (até 200 caracteres)" htmlFor={`reason-${label}`}>
+              <Input id={`reason-${label}`} type="text" maxLength={200} value={reason} onChange={(e) => setReason(e.target.value)} />
+            </Field>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={!ready}>Confirmar {label.toLowerCase()}</Button>
+              <Button variant="secondary" onClick={() => setOpen(false)}>Cancelar</Button>
+            </div>
+          </form>
+      </Dialog>
+    </>
   );
 }
 
@@ -96,22 +102,15 @@ export function UserDetail({ id }: { id: string }) {
   }
 
   if (!data) {
-    return error ? <p role="alert" className="error">{error}</p> : <p>Carregando...</p>;
+    return error ? <ErrorText>{error}</ErrorText> : <Loading />;
   }
   const { profile, account } = data;
 
   return (
-    <section>
-      <h1>{profile.name}</h1>
-      {error && <p role="alert" className="error">{error}</p>}
-      <p>{profile.email}</p>
-      <p>
-        {USER_STATUS[profile.status] ?? profile.status} · criado em {stamp(profile.createdAt)}
-      </p>
-      <p>Conta Tecnofit: {account ? `${account.boxName} (${account.status})` : "—"}</p>
-      <div className="actions">
+    <section className="flex flex-col gap-6">
+      <PageHeader title={profile.name}>
         {profile.status === "suspended" ? (
-          <button type="button" onClick={() => run(() => post(`${base}/reactivate`))}>Reativar</button>
+          <Button variant="secondary" onClick={() => run(() => post(`${base}/reactivate`))}>Reativar</Button>
         ) : (
           <Destructive
             label="Suspender"
@@ -119,49 +118,90 @@ export function UserDetail({ id }: { id: string }) {
             onConfirm={(reason) => run(() => post(`${base}/suspend`, { reason }))}
           />
         )}
-        <button type="button" onClick={() => run(() => post(`${base}/revoke-sessions`))}>Encerrar sessões</button>
-      </div>
+        <Button variant="secondary" onClick={() => run(() => post(`${base}/revoke-sessions`))}>Encerrar sessões</Button>
+      </PageHeader>
+      {error && <ErrorText>{error}</ErrorText>}
+      <p className="text-fg">
+        {USER_STATUS[profile.status] ?? profile.status} · criado em {stamp(profile.createdAt)}
+      </p>
+      <Stats>
+        <Stat label="E-mail">{profile.email}</Stat>
+        <Stat label="Conta Tecnofit">{account ? `${account.boxName} (${account.status})` : "—"}</Stat>
+      </Stats>
 
-      <h2>Agendamentos</h2>
-      {data.schedules.length === 0 && <p>Nenhum agendamento.</p>}
-      {data.schedules.map((s) => (
-        <p key={s.scheduleId}>
-          {s.startTime} — {s.className} ·{" "}
-          {s.kind === "weekly"
-            ? [...(s.weekdays ?? [])].sort().map((d) => WEEKDAYS[d]).join(", ")
-            : s.date && fullDate(s.date)}
-          {" · "}
-          {s.active ? "Ativo" : s.pausedBySuspension ? "Pausado pela suspensão" : "Pausado"}
-        </p>
-      ))}
+      <Card title="Agendamentos">
+        {data.schedules.length === 0 && <p className="text-fg">Nenhum agendamento.</p>}
+        {data.schedules.length > 0 && (
+          <Table head={["Aula", "Quando", "Estado"]}>
+            {data.schedules.map((s) => (
+              <tr key={s.scheduleId}>
+                <td className="text-fg-emphasis">{s.startTime} — {s.className}</td>
+                <td>
+                  {s.kind === "weekly"
+                    ? [...(s.weekdays ?? [])].sort().map((d) => WEEKDAYS[d]).join(", ")
+                    : s.date && fullDate(s.date)}
+                </td>
+                <td>
+                  <Badge tone={s.active ? "success" : "neutral"}>
+                    {s.active ? "Ativo" : s.pausedBySuspension ? "Pausado pela suspensão" : "Pausado"}
+                  </Badge>
+                </td>
+              </tr>
+            ))}
+          </Table>
+        )}
+      </Card>
 
-      <h2>Execuções</h2>
-      {data.executions.length === 0 && <p>Nenhuma execução.</p>}
-      {data.executions.map((x) => (
-        <p key={`${x.scheduleId}-${x.classDate}`}>
-          {fullDate(x.classDate)} {x.startTime} — {x.className} · {STATUS_LABEL[x.status] ?? x.status}
-          {x.error ? ` (${x.error})` : ""}
-        </p>
-      ))}
+      <Card title="Execuções">
+        {data.executions.length === 0 && <p className="text-fg">Nenhuma execução.</p>}
+        {data.executions.length > 0 && (
+          <Table head={["Data", "Aula", "Status", "Erro"]}>
+            {data.executions.map((x) => (
+              <tr key={`${x.scheduleId}-${x.classDate}`}>
+                <td>{fullDate(x.classDate)} {x.startTime}</td>
+                <td className="text-fg-emphasis">{x.className}</td>
+                <td><Badge tone={STATUS_TONE[x.status] ?? "neutral"}>{STATUS_LABEL[x.status] ?? x.status}</Badge></td>
+                <td>{x.error ?? "—"}</td>
+              </tr>
+            ))}
+          </Table>
+        )}
+      </Card>
 
-      <h2>Sessões</h2>
-      {data.sessions.length === 0 && <p>Nenhuma sessão.</p>}
-      {data.sessions.map((s) => (
-        <p key={s.createdAt}>
-          {stamp(s.createdAt)} · visto {stamp(s.lastSeenAt)} · {s.ip ?? "—"}
-        </p>
-      ))}
+      <Card title="Sessões">
+        {data.sessions.length === 0 && <p className="text-fg">Nenhuma sessão.</p>}
+        {data.sessions.length > 0 && (
+          <Table head={["Criada", "Vista", "IP"]}>
+            {data.sessions.map((s) => (
+              <tr key={s.createdAt}>
+                <td>{stamp(s.createdAt)}</td>
+                <td>{stamp(s.lastSeenAt)}</td>
+                <td className="font-mono text-fg-emphasis">{s.ip ?? "—"}</td>
+              </tr>
+            ))}
+          </Table>
+        )}
+      </Card>
 
-      <h2>Auditoria</h2>
-      {data.audit.length === 0 && <p>Nenhum evento.</p>}
-      {data.audit.map((a) => (
-        <p key={`${a.at}-${a.action}`}>
-          {stamp(a.at)} · {a.action} · {a.actorType} · {a.result}
-          {a.metadata ? ` · ${JSON.stringify(a.metadata)}` : ""}
-        </p>
-      ))}
+      <Card title="Auditoria">
+        {data.audit.length === 0 && <p className="text-fg">Nenhum evento.</p>}
+        {data.audit.length > 0 && (
+          <Table head={["Quando", "Ação", "Ator", "Resultado", "Detalhes"]}>
+            {data.audit.map((a) => (
+              <tr key={`${a.at}-${a.action}`}>
+                <td>{stamp(a.at)}</td>
+                <td className="font-mono text-fg-emphasis">{a.action}</td>
+                <td>{a.actorType}</td>
+                <td>{a.result}</td>
+                <td className="font-mono text-xs whitespace-normal break-all">{a.metadata ? JSON.stringify(a.metadata) : "—"}</td>
+              </tr>
+            ))}
+          </Table>
+        )}
+      </Card>
 
-      <div className="danger">
+      <Card title="Zona de perigo" danger>
+        <p className="mb-4 text-fg">Exclui o usuário, os agendamentos e a conta Tecnofit vinculada.</p>
         <Destructive
           label="Excluir"
           name={profile.name}
@@ -169,7 +209,7 @@ export function UserDetail({ id }: { id: string }) {
             run(() => del(base, { reason }), () => location.assign("/admin/usuarios"))
           }
         />
-      </div>
+      </Card>
     </section>
   );
 }

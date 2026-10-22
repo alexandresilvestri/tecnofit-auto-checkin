@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { del, errorMessage, get, guard, post } from "../api";
-import { Nav } from "../Nav";
+import { Alert } from "../ui/Alert";
+import { Button } from "../ui/Button";
+import { Card } from "../ui/Card";
+import { Field } from "../ui/Field";
+import { Input } from "../ui/Input";
+import { PageHeader } from "../ui/PageHeader";
+import { Stat } from "../ui/Stat";
+import { ErrorText, Loading } from "../ui/Text";
 
 type Me = { name: string; boxName: string; accountStatus: "ok" | "reconnect" };
 
@@ -32,40 +39,38 @@ export function Account() {
   const logout = () => leave(() => post("/api/auth/logout"));
 
   return (
-    <section>
-      <Nav />
-      {error && <p role="alert" className="error">{error}</p>}
-      {!me && !error && <p>Carregando...</p>}
+    <section className="flex flex-col gap-4">
+      {error && <ErrorText>{error}</ErrorText>}
+      {!me && !error && <Loading />}
       {me && (
         <>
-          <h1>{me.name}</h1>
-          <p>Box: {me.boxName}</p>
-          <p role="status" className={me.accountStatus === "ok" ? "ok" : "error"}>
+          <PageHeader title={me.name} />
+          <Stat label="Box">{me.boxName}</Stat>
+          <Alert tone={me.accountStatus === "ok" ? "success" : "error"} role="status">
             {me.accountStatus === "ok"
               ? "Conta conectada à Tecnofit"
               : "Conexão com a Tecnofit expirada — faça login novamente"}
-          </p>
-          {me.accountStatus === "reconnect" && (
-            <button type="button" disabled={busy} onClick={logout}>Reconectar</button>
-          )}
-          <button type="button" disabled={busy} onClick={logout}>Sair</button>
-          <form
-            className="danger"
+          </Alert>
+          <div className="flex gap-2">
+            {me.accountStatus === "reconnect" && (
+              <Button disabled={busy} onClick={logout}>Reconectar</Button>
+            )}
+            <Button variant="secondary" disabled={busy} onClick={logout}>Sair</Button>
+          </div>
+          <Card
+            as="form"
+            title="Zona de perigo"
+            danger className="mt-4 flex flex-col gap-4"
             onSubmit={(e) => {
               e.preventDefault();
               void leave(() => del("/api/me"));
             }}
           >
-            <label htmlFor="confirm">Para excluir a conta, digite EXCLUIR</label>
-            <input
-              id="confirm"
-              type="text"
-              autoComplete="off"
-              value={confirmation}
-              onChange={(e) => setConfirmation(e.target.value)}
-            />
-            <button type="submit" disabled={busy || confirmation !== "EXCLUIR"}>Excluir conta</button>
-          </form>
+            <Field label="Para excluir a conta, digite EXCLUIR" htmlFor="confirm">
+              <Input id="confirm" type="text" autoComplete="off" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} />
+            </Field>
+            <Button type="submit" variant="danger" className="self-start" disabled={busy || confirmation !== "EXCLUIR"}>Excluir conta</Button>
+          </Card>
         </>
       )}
     </section>
