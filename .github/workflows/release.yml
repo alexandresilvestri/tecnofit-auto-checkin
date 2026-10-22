@@ -23,6 +23,16 @@ permissions:
   id-token: write
 
 jobs:
+  unknown-env:
+    if: inputs.env != 'dev' && inputs.env != 'prod'
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_ENV: ${{ inputs.env }}
+    steps:
+      - run: |
+          echo "::error::Unknown env \"$DEPLOY_ENV\"; expected dev or prod"
+          exit 1
+
   dev:
     if: inputs.env == 'dev'
     runs-on: ubuntu-latest
@@ -106,12 +116,17 @@ jobs:
             sleep 15
           done
           exit 1
-      - name: Check security headers and origin lock
+      - name: Check security headers
         run: |
-          headers=$(curl -fsS -o /dev/null -D - "$WEB_URL/")
-          grep -qi "^strict-transport-security:" <<< "$headers"
-          grep -qi "^content-security-policy:" <<< "$headers"
-          test "$(curl -s -o /dev/null -w "%{http_code}" "$API_ENDPOINT/api/health")" = 403
+          for _ in $(seq 10); do
+            headers=$(curl -fsS -o /dev/null -D - "$WEB_URL/") \
+              && grep -qi "^strict-transport-security:" <<< "$headers" \
+              && grep -qi "^content-security-policy:" <<< "$headers" && exit 0
+            sleep 15
+          done
+          exit 1
+      - name: Check direct API access is denied
+        run: test "$(curl -s -o /dev/null -w "%{http_code}" "$API_ENDPOINT/api/health")" = 403
 
   prod:
     if: inputs.env == 'prod'
@@ -197,9 +212,14 @@ jobs:
             sleep 15
           done
           exit 1
-      - name: Check security headers and origin lock
+      - name: Check security headers
         run: |
-          headers=$(curl -fsS -o /dev/null -D - "$WEB_URL/")
-          grep -qi "^strict-transport-security:" <<< "$headers"
-          grep -qi "^content-security-policy:" <<< "$headers"
-          test "$(curl -s -o /dev/null -w "%{http_code}" "$API_ENDPOINT/api/health")" = 403
+          for _ in $(seq 10); do
+            headers=$(curl -fsS -o /dev/null -D - "$WEB_URL/") \
+              && grep -qi "^strict-transport-security:" <<< "$headers" \
+              && grep -qi "^content-security-policy:" <<< "$headers" && exit 0
+            sleep 15
+          done
+          exit 1
+      - name: Check direct API access is denied
+        run: test "$(curl -s -o /dev/null -w "%{http_code}" "$API_ENDPOINT/api/health")" = 403
