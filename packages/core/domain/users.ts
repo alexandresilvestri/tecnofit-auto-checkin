@@ -1,4 +1,4 @@
-import { removeSchedule, type ScheduleDeps } from "./schedules.js";
+import { dropSchedule, type ScheduleDeps } from "./schedules.js";
 
 const assertDeleted = ({ unprocessed }: { unprocessed: unknown[] }) => {
   if (unprocessed.length > 0) throw new Error("Batch delete left unprocessed items");
@@ -12,8 +12,9 @@ export async function deleteUser(
   const schedules = (
     await entities.schedule.query.byUser({ userId }).go({ pages: "all" })
   ).data;
-  for (const { scheduleId } of schedules)
-    await removeSchedule(deps, userId, scheduleId);
+  await Promise.all(
+    schedules.map(({ scheduleId }) => dropSchedule(deps, userId, scheduleId)),
+  );
 
   const executions = (
     await entities.execution.query.byUser({ userId }).go({ pages: "all" })

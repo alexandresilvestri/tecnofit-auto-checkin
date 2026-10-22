@@ -1,6 +1,6 @@
 import { DynamoDBDocumentClient, GetCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { mockClient } from "aws-sdk-client-mock";
-import { ClassNotFound, ScheduleFinished, ScheduleNotFound, TooLate } from "@checkin/core/domain/schedules";
+import { ClassNotFound, InvalidCursor, ScheduleFinished, ScheduleNotFound, TooLate } from "@checkin/core/domain/schedules";
 import { TecnofitError, TecnofitInvalidResponse, TecnofitUnauthorized } from "@checkin/core/tecnofit/client";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 
@@ -355,7 +355,7 @@ it("executions with oversized cursor returns 400", async () => {
 });
 
 it("executions with unparseable cursor returns 400", async () => {
-  sched.listExecutions.mockRejectedValue(Object.assign(new Error("Unable to parse cursor"), { code: 4001 }));
+  sched.listExecutions.mockRejectedValue(new InvalidCursor());
   const res = await send("GET", "/api/executions", {}, { query: "cursor=abc" });
   expect(res.statusCode).toBe(400);
   expect(JSON.parse(res.body)).toEqual(invalid);

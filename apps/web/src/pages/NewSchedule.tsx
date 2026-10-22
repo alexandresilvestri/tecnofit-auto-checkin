@@ -5,11 +5,7 @@ import { WEEKDAYS } from "./Schedules";
 
 type Cls = { name: string; time: string; count: number; capacity: number };
 
-const pad = (n: number) => String(n).padStart(2, "0");
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-};
+const today = () => new Date().toLocaleDateString("sv-SE");
 const weekdayOf = (date: string) => new Date(`${date}T12:00:00`).getDay();
 
 export function NewSchedule() {

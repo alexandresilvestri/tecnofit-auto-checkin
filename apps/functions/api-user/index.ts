@@ -9,6 +9,7 @@ import { requestMeta } from "@checkin/core/domain/invites";
 import { SESSION_COOKIE, revokeSession, touchSession } from "@checkin/core/domain/sessions";
 import {
   ClassNotFound,
+  InvalidCursor,
   ScheduleFinished,
   ScheduleNotFound,
   TooLate,
@@ -17,6 +18,7 @@ import {
   listExecutions,
   listSchedules,
   removeSchedule,
+  specOf,
   updateSchedule,
 } from "@checkin/core/domain/schedules";
 import { nextClass } from "@checkin/core/domain/time";
@@ -74,7 +76,8 @@ const scheduleId = z.string().min(1).max(64);
 
 const invalidRequest = { message: "Requisição inválida." };
 
-const mapError = (err: unknown): [404 | 409 | 422 | 500 | 502, string] => {
+const mapError = (err: unknown): [400 | 404 | 409 | 422 | 500 | 502, string] => {
+  if (err instanceof InvalidCursor) return [400, invalidRequest.message];
   if (err instanceof ClassNotFound) return [422, "Aula não encontrada na agenda."];
   if (err instanceof TooLate) return [422, "O check-in desta aula já foi liberado. Faça pelo app da Tecnofit."];
   if (err instanceof ScheduleNotFound) return [404, "Agendamento não encontrado."];
@@ -106,9 +109,9 @@ const session = (c: Context<Env>) => c.env.event.requestContext.authorizer.lambd
 
 const auditUser = (
   c: Context<Env>,
-  action: "schedule.created" | "schedule.updated" | "schedule.deleted" | "user.self_deleted",
-  targetType: "schedule" | "user",
-  targetId: string,
+  action: "schedule.created" | "schedule.updated" | "schedule.deleted" | "user.self_deleted" | "user.logout",
+  targetType?: "schedule" | "user",
+  targetId?: string,
 ) => {
   const { sourceIp, userAgent } = c.env.event.requestContext.http;
   return writeAudit(
@@ -146,21 +149,9 @@ app.get("/api/me", async (c) => {
 });
 
 app.post("/api/auth/logout", async (c) => {
-  const { userId } = session(c);
   const token = getCookie(c, "sid");
   if (token) await revokeSession(entities, token);
-  const { sourceIp, userAgent } = c.env.event.requestContext.http;
-  await writeAudit(
-    entities,
-    {
-      actorType: "user",
-      actorId: userId,
-      action: "user.logout",
-      result: "success",
-      ...requestMeta(c.req.header("cloudfront-viewer-address"), sourceIp, userAgent),
-    },
-    Date.now(),
-  );
+  await auditUser(c, "user.logout");
   deleteCookie(c, "sid", { ...SESSION_COOKIE, maxAge: 0 });
   return c.body(null, 204);
 });
@@ -187,6 +178,7 @@ app.get("/api/schedules", async (c) => {
       const [last] = (
         await entities.execution.query.bySchedule({ scheduleId: item.scheduleId }).go({ order: "desc", limit: 1 })
       ).data;
+      const next = nextClass(specOf(item), now);
       return {
         scheduleId: item.scheduleId,
         className: item.className,
@@ -196,8 +188,8 @@ app.get("/api/schedules", async (c) => {
         date: item.date,
         allowWaitingList: item.allowWaitingList,
         active: item.active,
-        finished: item.kind === "once" && nextClass(item as Parameters<typeof nextClass>[0], now) === null,
-        nextClass: item.active ? nextClass(item as Parameters<typeof nextClass>[0], now) : null,
+        finished: item.kind === "once" && next === null,
+        nextClass: item.active ? next : null,
         last: last ? { classDate: last.classDate, status: last.status } : null,
       };
     }),
@@ -249,14 +241,7 @@ app.delete("/api/schedules/:id", async (c) => {
 app.get("/api/executions", async (c) => {
   const query = executionsQuery.safeParse(c.req.query());
   if (!query.success) return c.json(invalidRequest, 400);
-  let page;
-  try {
-    page = await listExecutions(entities, session(c).userId, query.data.cursor);
-  } catch (err) {
-    if ((err as { code?: number }).code === 4001) return c.json(invalidRequest, 400);
-    throw err;
-  }
-  const { items, cursor } = page;
+  const { items, cursor } = await listExecutions(entities, session(c).userId, query.data.cursor);
   return c.json({
     items: items.map(({ scheduleId, classDate, className, startTime, status, attempts, error }) => ({
       scheduleId,

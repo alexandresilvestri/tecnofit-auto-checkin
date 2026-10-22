@@ -28,7 +28,7 @@ export const STATUS_LABEL: Record<string, string> = {
 
 export const shortDate = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
-const fullDate = (iso: string) => `${shortDate(iso)}/${iso.slice(0, 4)}`;
+export const fullDate = (iso: string) => `${shortDate(iso)}/${iso.slice(0, 4)}`;
 
 const nextLabel = (value: string) => `${shortDate(value)} ${value.slice(11, 16)}`;
 

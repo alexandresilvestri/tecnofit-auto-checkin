@@ -18,10 +18,10 @@ export function Account() {
       });
   }, []);
 
-  async function logout() {
+  async function leave(call: () => Promise<unknown>) {
     setBusy(true);
     try {
-      await post("/api/auth/logout");
+      await call();
       location.assign("/login");
     } catch (e) {
       if (!guard(e)) setError(errorMessage(e));
@@ -29,16 +29,7 @@ export function Account() {
     }
   }
 
-  async function remove() {
-    setBusy(true);
-    try {
-      await del("/api/me");
-      location.assign("/login");
-    } catch (e) {
-      if (!guard(e)) setError(errorMessage(e));
-      setBusy(false);
-    }
-  }
+  const logout = () => leave(() => post("/api/auth/logout"));
 
   return (
     <section>
@@ -62,7 +53,7 @@ export function Account() {
             className="danger"
             onSubmit={(e) => {
               e.preventDefault();
-              void remove();
+              void leave(() => del("/api/me"));
             }}
           >
             <label htmlFor="confirm">Para excluir a conta, digite EXCLUIR</label>

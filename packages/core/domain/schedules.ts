@@ -57,6 +57,18 @@ export class ScheduleFinished extends Error {
   }
 }
 
+export class InvalidCursor extends Error {
+  constructor() {
+    super("Invalid cursor");
+    this.name = "InvalidCursor";
+  }
+}
+
+export const specOf = (row: EntityItem<Entities["schedule"]>): ScheduleSpec =>
+  row.kind === "weekly"
+    ? { kind: "weekly", startTime: row.startTime, weekdays: row.weekdays ?? [] }
+    : { kind: "once", startTime: row.startTime, date: row.date! };
+
 type Account = EntityItem<Entities["account"]>;
 
 export async function withToken<T>(
@@ -148,21 +160,11 @@ export async function updateSchedule(
   const { entities } = deps;
   const { data: current } = await entities.schedule.get({ userId, scheduleId }).go();
   if (!current) throw new ScheduleNotFound();
-  if (
-    patch.active === true &&
-    current.kind === "once" &&
-    nextClass({ kind: "once", startTime: current.startTime, date: current.date! }, deps.now()) === null
-  )
+  const spec = specOf(current);
+  if (patch.active === true && spec.kind === "once" && nextClass(spec, deps.now()) === null)
     throw new ScheduleFinished();
-  const { data: updated } = await entities.schedule
-    .patch({ userId, scheduleId })
-    .set(patch)
-    .go({ response: "all_new" });
+  await entities.schedule.patch({ userId, scheduleId }).set(patch).go();
   if (patch.active === undefined || patch.active === current.active) return;
-  const spec: ScheduleSpec =
-    updated.kind === "weekly"
-      ? { kind: "weekly", startTime: updated.startTime, weekdays: updated.weekdays ?? [] }
-      : { kind: "once", startTime: updated.startTime, date: updated.date! };
   try {
     await deps.scheduler.send(
       new UpdateScheduleCommand({
@@ -180,9 +182,7 @@ export async function updateSchedule(
   }
 }
 
-export async function removeSchedule(deps: ScheduleDeps, userId: string, scheduleId: string): Promise<void> {
-  const { data } = await deps.entities.schedule.get({ userId, scheduleId }).go();
-  if (!data) throw new ScheduleNotFound();
+export async function dropSchedule(deps: ScheduleDeps, userId: string, scheduleId: string): Promise<void> {
   try {
     await deps.scheduler.send(new DeleteScheduleCommand({ Name: scheduleId, GroupName: deps.group }));
   } catch (err) {
@@ -191,13 +191,24 @@ export async function removeSchedule(deps: ScheduleDeps, userId: string, schedul
   await deps.entities.schedule.delete({ userId, scheduleId }).go();
 }
 
+export async function removeSchedule(deps: ScheduleDeps, userId: string, scheduleId: string): Promise<void> {
+  const { data } = await deps.entities.schedule.get({ userId, scheduleId }).go();
+  if (!data) throw new ScheduleNotFound();
+  await dropSchedule(deps, userId, scheduleId);
+}
+
 export async function listSchedules(entities: Entities, userId: string) {
   return (await entities.schedule.query.byUser({ userId }).go({ pages: "all" })).data;
 }
 
 export async function listExecutions(entities: Entities, userId: string, cursor?: string) {
-  const { data, cursor: next } = await entities.execution.query
-    .byUser({ userId })
-    .go({ order: "desc", limit: 20, cursor });
-  return { items: data, cursor: next };
+  try {
+    const { data, cursor: next } = await entities.execution.query
+      .byUser({ userId })
+      .go({ order: "desc", limit: 20, cursor });
+    return { items: data, cursor: next };
+  } catch (err) {
+    if ((err as { code?: number }).code === 4001) throw new InvalidCursor();
+    throw err;
+  }
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { errorMessage, get, guard } from "../api";
 import { Nav } from "../Nav";
-import { STATUS_LABEL } from "./Schedules";
+import { STATUS_LABEL, fullDate } from "./Schedules";
 
 type Execution = {
   scheduleId: string;
@@ -19,8 +19,6 @@ const REASONS: Record<string, string> = {
   unauthorized: "conexão expirada",
   timeout: "tempo esgotado",
 };
-
-const dmy = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 
 export function History() {
   const [items, setItems] = useState<Execution[]>();
@@ -55,7 +53,7 @@ export function History() {
       {items?.length === 0 && <p>Nenhuma execução.</p>}
       {items?.map((x) => (
         <article key={`${x.scheduleId}-${x.classDate}`} className="item">
-          <h2>{dmy(x.classDate)} {x.startTime} — {x.className ?? "Aula"}</h2>
+          <h2>{fullDate(x.classDate)} {x.startTime} — {x.className ?? "Aula"}</h2>
           <p>
             {STATUS_LABEL[x.status] ?? x.status}
             {x.status === "failed" && ` (${REASONS[x.error ?? ""] ?? "erro"})`}

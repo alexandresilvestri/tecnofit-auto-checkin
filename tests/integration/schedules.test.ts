@@ -16,6 +16,7 @@ import type { Entities } from "../../packages/core/db/entities.js";
 import {
   addSchedule,
   ClassNotFound,
+  InvalidCursor,
   listClasses,
   listExecutions,
   listSchedules,
@@ -423,5 +424,9 @@ describe("listExecutions", () => {
     const second = await listExecutions(e, userId, first.cursor!);
     expect(second.items.map((i) => i.classDate)).toEqual(["2026-09-01"]);
     expect(second.cursor).toBeNull();
+  });
+
+  it("rejects an unparseable cursor", async () => {
+    await expect(listExecutions(e, "u1", "abc")).rejects.toBeInstanceOf(InvalidCursor);
   });
 });
