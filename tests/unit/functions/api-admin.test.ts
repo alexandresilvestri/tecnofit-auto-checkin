@@ -137,6 +137,8 @@ it.each([
   ["GET", "/api/admin/users"],
   ["GET", "/api/admin/users/u1"],
   ["POST", "/api/admin/users/u1/suspend"],
+  ["POST", "/api/admin/users/u1/reactivate"],
+  ["POST", "/api/admin/users/u1/revoke-sessions"],
   ["DELETE", "/api/admin/users/u1"],
   ["GET", "/api/admin/executions"],
   ["GET", "/api/admin/audit"],
@@ -374,7 +376,8 @@ it("returns the user detail without secrets", async () => {
       startTime: "06:00",
       kind: "weekly",
       weekdays: [1],
-      active: true,
+      active: false,
+      pausedBySuspension: true,
     },
   ]);
   sched.listExecutions.mockResolvedValue({
@@ -405,7 +408,17 @@ it("returns the user detail without secrets", async () => {
     { createdAt: "c", lastSeenAt: "l", ip: "1.1.1.1", userAgent: "ua" },
   ]);
   expect(json.executions).toHaveLength(1);
-  expect(json.schedules).toHaveLength(1);
+  expect(json.schedules).toEqual([
+    {
+      scheduleId: "s1",
+      className: "Cross",
+      startTime: "06:00",
+      kind: "weekly",
+      weekdays: [1],
+      active: false,
+      pausedBySuspension: true,
+    },
+  ]);
   expect(json.audit).toHaveLength(1);
   expect(json.audit[0]).toMatchObject({
     action: "user.suspended",
@@ -441,7 +454,7 @@ it("suspends with reason and audits", async () => {
   });
 });
 
-it.each([{}, { reason: "" }, { reason: "x".repeat(201) }, { reason: 1 }])(
+it.each([{}, { reason: "" }, { reason: "   " }, { reason: "x".repeat(201) }, { reason: 1 }])(
   "rejects suspend body %j",
   async (body) => {
     expect(
@@ -485,6 +498,7 @@ it("reactivate maps UserNotFound to 404", async () => {
 });
 
 it("revokes sessions and audits", async () => {
+  ddb.on(GetCommand).resolves({ Item: profile });
   users.revokeUserSessions.mockResolvedValue(undefined);
   expect(
     (await send("POST", "/api/admin/users/u1/revoke-sessions")).statusCode,
@@ -495,6 +509,17 @@ it("revokes sessions and audits", async () => {
     targetType: "user",
     targetId: "u1",
   });
+});
+
+it("revoke-sessions on an unknown user is 404 without auditing", async () => {
+  ddb.on(GetCommand).resolves({});
+  await expectError(
+    await send("POST", "/api/admin/users/u1/revoke-sessions"),
+    404,
+    "Usuário não encontrado.",
+  );
+  expect(users.revokeUserSessions).not.toHaveBeenCalled();
+  expect(audit.writeAudit).not.toHaveBeenCalled();
 });
 
 it("deletes a user with reason and audits", async () => {
@@ -618,7 +643,7 @@ it("exports csv with headers and audits", async () => {
     query: "from=2026-07-01&to=2026-07-02&actor=a1",
   });
   expect(res.statusCode).toBe(200);
-  expect(res.body).toBe("h\r\nrow");
+  expect(Buffer.from(res.body, "base64").toString("utf8")).toBe("\uFEFFh\r\nrow");
   expect(res.headers).toMatchObject({
     "content-type": "text/csv; charset=utf-8",
     "content-disposition":

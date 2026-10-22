@@ -118,7 +118,7 @@ export async function queryAudit(
       rows.push(...(await entities.audit.query.byDay({ day }).go({ pages: "all", order: "desc" })).data);
     }
   }
-  const matching = action ? rows.filter((r) => r.action === action) : rows;
+  const matching = rows.filter((r) => (!action || r.action === action) && (!actor || !target || r.targetId === target));
   return { items: matching.slice(0, MAX_ITEMS), truncated: matching.length > MAX_ITEMS };
 }
 

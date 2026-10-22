@@ -68,6 +68,7 @@ describe("queryAudit", () => {
     await write("2026-03-10T15:00:00Z", { action: "user.reactivated" });
     await write("2026-03-12T15:00:00Z", { actorId: "adm_other", targetId: "u_other" });
     await write("2026-03-15T15:00:00Z", { actorId: "adm_far", targetId: "u_far" });
+    await write("2026-03-13T15:00:00Z", { targetId: "u_mix" });
   });
 
   it("queries by day range, newest first, with São Paulo day boundaries", async () => {
@@ -88,6 +89,13 @@ describe("queryAudit", () => {
     expect(byTarget.items).toHaveLength(1);
     const outside = await queryAudit(e, { from: "2026-03-01", to: "2026-03-11", target: "u_far" });
     expect(outside.items).toEqual([]);
+  });
+
+  it("applies actor and target together", async () => {
+    const both = await queryAudit(e, { from: "2026-03-09", to: "2026-03-14", actor: "adm_q", target: "u_mix" });
+    expect(both.items.map((i) => i.at)).toEqual(["2026-03-13T15:00:00.000Z"]);
+    const none = await queryAudit(e, { from: "2026-03-09", to: "2026-03-14", actor: "adm_q", target: "u_far" });
+    expect(none.items).toEqual([]);
   });
 
   it("filters by action", async () => {

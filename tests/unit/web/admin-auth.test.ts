@@ -41,6 +41,26 @@ it("callback rejects a mismatched state without calling fetch", async () => {
   expect(token()).toBeNull();
 });
 
+it("callback shows the provider error without calling fetch", async () => {
+  const fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("location", {
+    origin: "https://app.test",
+    search: "?error=access_denied&error_description=Usu%C3%A1rio+bloqueado&code=abc&state=good",
+  });
+  data.set("admin_state", "good");
+  data.set("admin_verifier", "v");
+  await expect(callback()).rejects.toThrow("Login recusado: Usuário bloqueado");
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(token()).toBeNull();
+});
+
+it("callback falls back to the error code", async () => {
+  vi.stubGlobal("fetch", vi.fn());
+  vi.stubGlobal("location", { origin: "https://app.test", search: "?error=access_denied" });
+  await expect(callback()).rejects.toThrow("Login recusado: access_denied");
+});
+
 it("callback rejects a missing state", async () => {
   const fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);

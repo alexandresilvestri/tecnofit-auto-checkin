@@ -54,6 +54,12 @@ export async function login(): Promise<void> {
 
 export async function callback(): Promise<void> {
   const params = new URLSearchParams(location.search);
+  const oauthError = params.get("error");
+  if (oauthError) {
+    store.remove("admin_state");
+    store.remove("admin_verifier");
+    throw new Error(`Login recusado: ${params.get("error_description") || oauthError}`);
+  }
   const code = params.get("code");
   const state = params.get("state");
   const expected = store.get("admin_state");

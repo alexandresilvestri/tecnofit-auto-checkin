@@ -14,6 +14,7 @@ type Detail = {
     weekdays?: number[];
     date?: string;
     active: boolean;
+    pausedBySuspension?: boolean;
   }[];
   executions: { scheduleId: string; classDate: string; className: string; startTime: string; status: string; error?: string }[];
   sessions: { createdAt: string; lastSeenAt: string; ip?: string; userAgent?: string }[];
@@ -131,7 +132,7 @@ export function UserDetail({ id }: { id: string }) {
             ? [...(s.weekdays ?? [])].sort().map((d) => WEEKDAYS[d]).join(", ")
             : s.date && fullDate(s.date)}
           {" · "}
-          {s.active ? "Ativo" : "Pausado"}
+          {s.active ? "Ativo" : s.pausedBySuspension ? "Pausado pela suspensão" : "Pausado"}
         </p>
       ))}
 

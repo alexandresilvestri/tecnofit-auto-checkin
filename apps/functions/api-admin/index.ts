@@ -57,7 +57,7 @@ const publicDeps = { entities, kms: deps.kms, keyId: "", now: Date.now };
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const text = z.string().min(1).max(200);
 const inviteBody = z.object({ label: z.string().min(1).max(60).optional() });
-const reasonBody = z.object({ reason: text });
+const reasonBody = z.object({ reason: z.string().trim().min(1).max(200) });
 const idParam = z.string().min(1).max(128);
 const executionsQuery = z.object({ date: day });
 const auditQuery = z.object({
@@ -201,7 +201,7 @@ app.get("/api/admin/users/:id", async (c) => {
     profile: userView(profile),
     account: account ? { boxName: account.boxName, status: account.status } : null,
     schedules: schedules.map(
-      ({ scheduleId, className, startTime, kind, weekdays, date, allowWaitingList, active }) => ({
+      ({ scheduleId, className, startTime, kind, weekdays, date, allowWaitingList, active, pausedBySuspension }) => ({
         scheduleId,
         className,
         startTime,
@@ -210,6 +210,7 @@ app.get("/api/admin/users/:id", async (c) => {
         date,
         allowWaitingList,
         active,
+        pausedBySuspension,
       }),
     ),
     executions: executions.items.map(
@@ -266,6 +267,8 @@ app.post("/api/admin/users/:id/reactivate", async (c) => {
 app.post("/api/admin/users/:id/revoke-sessions", async (c) => {
   const id = idParam.safeParse(c.req.param("id"));
   if (!id.success) return c.json(invalidRequest, 400);
+  const { data: profile } = await entities.profile.get({ userId: id.data }).go();
+  if (!profile) throw new UserNotFound();
   await revokeUserSessions(entities, id.data);
   await auditAdmin(c, "user.sessions_revoked", "user", id.data);
   return c.body(null, 204);
@@ -309,7 +312,7 @@ app.get("/api/admin/audit/export", async (c) => {
   const query = auditQuery.safeParse(c.req.query());
   if (!query.success) return c.json(invalidRequest, 400);
   const { items } = await queryAudit(entities, query.data);
-  const csv = auditCsv(items);
+  const csv = `\uFEFF${auditCsv(items)}`;
   await auditAdmin(c, "audit.exported", undefined, undefined, {
     filter: JSON.stringify(query.data).slice(0, 500),
   });
@@ -319,4 +322,6 @@ app.get("/api/admin/audit/export", async (c) => {
   });
 });
 
-export const handler = handle(app);
+export const handler = handle(app, {
+  isContentTypeBinary: (contentType) => contentType.startsWith("text/csv"),
+});
