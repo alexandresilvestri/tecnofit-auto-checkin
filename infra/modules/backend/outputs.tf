@@ -29,3 +29,8 @@ output "api_admin_arn" {
 output "api_admin_invoke_arn" {
   value = aws_lambda_function.api["api-admin"].invoke_arn
 }
+
+output "origin_secret" {
+  value     = random_password.origin.result
+  sensitive = true
+}

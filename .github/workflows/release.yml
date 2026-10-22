@@ -1,0 +1,229 @@
+name: release
+
+on:
+  workflow_call:
+    inputs:
+      env:
+        type: string
+        required: true
+      workspace:
+        type: string
+        required: true
+      sha:
+        type: string
+        required: true
+    secrets:
+      TF_API_TOKEN:
+        required: true
+      AWS_DEPLOY_ROLE_ARN:
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  unknown-env:
+    if: inputs.env != 'dev' && inputs.env != 'prod'
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_ENV: ${{ inputs.env }}
+    steps:
+      - run: |
+          echo "::error::Unknown env \"$DEPLOY_ENV\"; expected dev or prod"
+          exit 1
+
+  dev:
+    if: inputs.env == 'dev'
+    runs-on: ubuntu-latest
+    env:
+      TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+      TF_CLOUD_ORGANIZATION: ${{ vars.TF_CLOUD_ORGANIZATION }}
+      TF_WORKSPACE: ${{ inputs.workspace }}
+      ARTIFACTS_BUCKET: ${{ vars.ARTIFACTS_BUCKET }}
+      DEPLOY_ENV: ${{ inputs.env }}
+      SHA: ${{ inputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: Check artifacts
+        run: |
+          keys=$(aws s3api list-objects-v2 --bucket "$ARTIFACTS_BUCKET" --prefix "$SHA/" --query "Contents[].Key" --output json)
+          for dir in apps/functions/*/; do
+            key="$SHA/$(basename "$dir").zip"
+            if ! jq -e --arg k "$key" 'any(.[]?; . == $k)' <<< "$keys" > /dev/null; then
+              echo "::error::s3://$ARTIFACTS_BUCKET/$key not found; run deploy for $SHA first"
+              exit 1
+            fi
+          done
+      - name: Check environment exists at sha
+        run: test -d "infra/envs/$DEPLOY_ENV" || { echo "::error::$SHA predates infra/envs/$DEPLOY_ENV"; exit 1; }
+      - run: echo "artifact_version = \"$SHA\"" > "infra/envs/$DEPLOY_ENV/artifact.auto.tfvars"
+      - id: upload
+        uses: hashicorp/tfc-workflows-github/actions/upload-configuration@8e08d1ba957673f5fbf971a22b3219639dc45661 # v1.3.2
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          directory: infra
+      - id: run
+        uses: hashicorp/tfc-workflows-github/actions/create-run@8e08d1ba957673f5fbf971a22b3219639dc45661 # v1.3.2
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          configuration_version: ${{ steps.upload.outputs.configuration_version_id }}
+      - if: fromJSON(steps.run.outputs.payload).data.attributes.actions.IsConfirmable
+        uses: hashicorp/tfc-workflows-github/actions/apply-run@8e08d1ba957673f5fbf971a22b3219639dc45661 # v1.3.2
+        with:
+          run: ${{ steps.run.outputs.run_id }}
+      - name: Read web outputs
+        run: |
+          hcp() {
+            curl -sf -H "Authorization: Bearer $TF_API_TOKEN" -H "Content-Type: application/vnd.api+json" "https://app.terraform.io/api/v2/$1"
+          }
+          workspace_id=$(hcp "organizations/$TF_CLOUD_ORGANIZATION/workspaces/$TF_WORKSPACE" | jq -r .data.id)
+          output() {
+            jq -r --arg n "$1" '.data[] | select(.attributes.name==$n).attributes.value // empty' <<< "$outputs"
+          }
+          for _ in $(seq 10); do
+            outputs=$(hcp "workspaces/$workspace_id/current-state-version-outputs" || true)
+            web_bucket=$(output web_bucket) distribution_id=$(output distribution_id) web_url=$(output web_url)
+            admin_client_id=$(output admin_client_id) auth_domain=$(output auth_domain) api_endpoint=$(output api_endpoint)
+            if [ -n "$web_bucket" ] && [ -n "$distribution_id" ] && [ -n "$web_url" ] && [ -n "$admin_client_id" ] && [ -n "$auth_domain" ] && [ -n "$api_endpoint" ]; then break; fi
+            sleep 10
+          done
+          test -n "$web_bucket" && test -n "$distribution_id" && test -n "$web_url" && test -n "$admin_client_id" && test -n "$auth_domain" && test -n "$api_endpoint"
+          {
+            echo "WEB_BUCKET=$web_bucket"
+            echo "DISTRIBUTION_ID=$distribution_id"
+            echo "WEB_URL=$web_url"
+            echo "API_ENDPOINT=$api_endpoint"
+            echo "VITE_COGNITO_CLIENT_ID=$admin_client_id"
+            echo "VITE_COGNITO_DOMAIN=$auth_domain"
+          } >> "$GITHUB_ENV"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci && npm run web:build
+      - run: aws s3 sync apps/web/dist "s3://$WEB_BUCKET" --delete --exclude index.html
+      - run: aws s3 cp apps/web/dist/index.html "s3://$WEB_BUCKET/index.html" --cache-control no-cache --content-type text/html
+      - run: aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/index.html"
+      - name: Smoke test
+        run: |
+          for _ in $(seq 10); do
+            curl -fsS "$WEB_URL/api/health" | jq -e ".ok == true" && exit 0
+            sleep 15
+          done
+          exit 1
+      - name: Check security headers
+        run: |
+          for _ in $(seq 10); do
+            headers=$(curl -fsS -o /dev/null -D - "$WEB_URL/") \
+              && grep -qi "^strict-transport-security:" <<< "$headers" \
+              && grep -qi "^content-security-policy:" <<< "$headers" && exit 0
+            sleep 15
+          done
+          exit 1
+      - name: Check direct API access is denied
+        run: test "$(curl -s -o /dev/null -w "%{http_code}" "$API_ENDPOINT/api/health")" = 403
+
+  prod:
+    if: inputs.env == 'prod'
+    environment: prod
+    runs-on: ubuntu-latest
+    env:
+      TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+      TF_CLOUD_ORGANIZATION: ${{ vars.TF_CLOUD_ORGANIZATION }}
+      TF_WORKSPACE: ${{ inputs.workspace }}
+      ARTIFACTS_BUCKET: ${{ vars.ARTIFACTS_BUCKET }}
+      DEPLOY_ENV: ${{ inputs.env }}
+      SHA: ${{ inputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: Check artifacts
+        run: |
+          keys=$(aws s3api list-objects-v2 --bucket "$ARTIFACTS_BUCKET" --prefix "$SHA/" --query "Contents[].Key" --output json)
+          for dir in apps/functions/*/; do
+            key="$SHA/$(basename "$dir").zip"
+            if ! jq -e --arg k "$key" 'any(.[]?; . == $k)' <<< "$keys" > /dev/null; then
+              echo "::error::s3://$ARTIFACTS_BUCKET/$key not found; run deploy for $SHA first"
+              exit 1
+            fi
+          done
+      - name: Check environment exists at sha
+        run: test -d "infra/envs/$DEPLOY_ENV" || { echo "::error::$SHA predates infra/envs/$DEPLOY_ENV"; exit 1; }
+      - run: echo "artifact_version = \"$SHA\"" > "infra/envs/$DEPLOY_ENV/artifact.auto.tfvars"
+      - id: upload
+        uses: hashicorp/tfc-workflows-github/actions/upload-configuration@8e08d1ba957673f5fbf971a22b3219639dc45661 # v1.3.2
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          directory: infra
+      - id: run
+        uses: hashicorp/tfc-workflows-github/actions/create-run@8e08d1ba957673f5fbf971a22b3219639dc45661 # v1.3.2
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          configuration_version: ${{ steps.upload.outputs.configuration_version_id }}
+      - if: fromJSON(steps.run.outputs.payload).data.attributes.actions.IsConfirmable
+        uses: hashicorp/tfc-workflows-github/actions/apply-run@8e08d1ba957673f5fbf971a22b3219639dc45661 # v1.3.2
+        with:
+          run: ${{ steps.run.outputs.run_id }}
+      - name: Read web outputs
+        run: |
+          hcp() {
+            curl -sf -H "Authorization: Bearer $TF_API_TOKEN" -H "Content-Type: application/vnd.api+json" "https://app.terraform.io/api/v2/$1"
+          }
+          workspace_id=$(hcp "organizations/$TF_CLOUD_ORGANIZATION/workspaces/$TF_WORKSPACE" | jq -r .data.id)
+          output() {
+            jq -r --arg n "$1" '.data[] | select(.attributes.name==$n).attributes.value // empty' <<< "$outputs"
+          }
+          for _ in $(seq 10); do
+            outputs=$(hcp "workspaces/$workspace_id/current-state-version-outputs" || true)
+            web_bucket=$(output web_bucket) distribution_id=$(output distribution_id) web_url=$(output web_url)
+            admin_client_id=$(output admin_client_id) auth_domain=$(output auth_domain) api_endpoint=$(output api_endpoint)
+            if [ -n "$web_bucket" ] && [ -n "$distribution_id" ] && [ -n "$web_url" ] && [ -n "$admin_client_id" ] && [ -n "$auth_domain" ] && [ -n "$api_endpoint" ]; then break; fi
+            sleep 10
+          done
+          test -n "$web_bucket" && test -n "$distribution_id" && test -n "$web_url" && test -n "$admin_client_id" && test -n "$auth_domain" && test -n "$api_endpoint"
+          {
+            echo "WEB_BUCKET=$web_bucket"
+            echo "DISTRIBUTION_ID=$distribution_id"
+            echo "WEB_URL=$web_url"
+            echo "API_ENDPOINT=$api_endpoint"
+            echo "VITE_COGNITO_CLIENT_ID=$admin_client_id"
+            echo "VITE_COGNITO_DOMAIN=$auth_domain"
+          } >> "$GITHUB_ENV"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci && npm run web:build
+      - run: aws s3 sync apps/web/dist "s3://$WEB_BUCKET" --delete --exclude index.html
+      - run: aws s3 cp apps/web/dist/index.html "s3://$WEB_BUCKET/index.html" --cache-control no-cache --content-type text/html
+      - run: aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/index.html"
+      - name: Smoke test
+        run: |
+          for _ in $(seq 10); do
+            curl -fsS "$WEB_URL/api/health" | jq -e ".ok == true" && exit 0
+            sleep 15
+          done
+          exit 1
+      - name: Check security headers
+        run: |
+          for _ in $(seq 10); do
+            headers=$(curl -fsS -o /dev/null -D - "$WEB_URL/") \
+              && grep -qi "^strict-transport-security:" <<< "$headers" \
+              && grep -qi "^content-security-policy:" <<< "$headers" && exit 0
+            sleep 15
+          done
+          exit 1
+      - name: Check direct API access is denied
+        run: test "$(curl -s -o /dev/null -w "%{http_code}" "$API_ENDPOINT/api/health")" = 403

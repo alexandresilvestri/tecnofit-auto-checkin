@@ -1,7 +1,10 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import { createEntities } from "../../packages/core/db/entities.js";
 import type { Entities } from "../../packages/core/db/entities.js";
 import { auditCsv, InvalidAuditPeriod, queryAudit, writeAudit } from "../../packages/core/audit/audit.js";
-import { createTestEntities, resetMoto } from "./setup/aws.js";
+import { awsConfig, createTestEntities, resetMoto } from "./setup/aws.js";
 
 const NOW = Date.UTC(2026, 1, 2, 15, 0, 0);
 let e: Entities;
@@ -119,6 +122,23 @@ describe("queryAudit", () => {
     const exact = await queryAudit(e, { from: "2026-04-05", to: "2026-04-05", actor: "adm_bulk", action: "user.suspended" });
     expect(exact.items).toHaveLength(1000);
     expect(exact.truncated).toBe(true);
+  }, 120_000);
+
+  it("stops reading once more than 1000 items match", async () => {
+    for (let i = 0; i < 1001; i += 25) {
+      await Promise.all(
+        Array.from({ length: Math.min(25, 1001 - i) }, (_, k) =>
+          write(`2026-05-05T12:00:00.${String(i + k).padStart(3, "0")}Z`, { actorId: "adm_stop", targetId: `u_stop${i + k}` }),
+        ),
+      );
+    }
+    const client = DynamoDBDocumentClient.from(new DynamoDBClient(awsConfig));
+    const send = vi.spyOn(client, "send");
+    const counted = createEntities(client, { main: "checkin-test-main", audit: "checkin-test-audit" });
+    const { items, truncated } = await queryAudit(counted, { from: "2026-05-01", to: "2026-05-05" });
+    expect(items).toHaveLength(1000);
+    expect(truncated).toBe(true);
+    expect(send).toHaveBeenCalledTimes(1);
   }, 120_000);
 
   it("rejects invalid or oversized periods", async () => {

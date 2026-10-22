@@ -9,12 +9,14 @@ let handler: typeof import("../../../apps/functions/authorizer-user/index").hand
 beforeAll(async () => {
   vi.stubEnv("TABLE_MAIN", "checkin-test-main");
   vi.stubEnv("TABLE_AUDIT", "checkin-test-audit");
+  vi.stubEnv("ORIGIN_SECRET", "s3cret");
   ({ handler } = await import("../../../apps/functions/authorizer-user/index"));
 });
 
 beforeEach(() => ddb.reset());
 
-const call = (cookies?: string[]) => handler({ cookies } as never);
+const call = (cookies?: string[], headers: Record<string, string> = { "x-origin-verify": "s3cret" }) =>
+  handler({ cookies, headers } as never);
 
 it.each([[undefined], [[]], [["other=1"]]])("denies without sid cookie (%j)", async (cookies) => {
   await expect(call(cookies)).resolves.toEqual({ isAuthorized: false });
@@ -47,4 +49,9 @@ it("authorizes a valid session with userId and sessionId", async () => {
     context: { userId: "u1", sessionId: hash },
   });
   expect(ddb.commandCalls(GetCommand)[0]!.args[0].input.Key).toEqual({ PK: `SESSION#${hash}`, SK: "META" });
+});
+
+it.each([[{ "x-origin-verify": "wrong" }], [{ "x-origin-verify": "" }], [{}]])("denies origin header %j even with a valid session", async (headers) => {
+  await expect(call(["sid=tok"], headers)).resolves.toEqual({ isAuthorized: false });
+  expect(ddb.calls()).toHaveLength(0);
 });

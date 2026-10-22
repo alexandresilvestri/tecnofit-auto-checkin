@@ -2,15 +2,21 @@ data "aws_region" "current" {}
 
 data "aws_caller_identity" "current" {}
 
+resource "random_password" "origin" {
+  length  = 48
+  special = false
+}
+
 locals {
   worker_name = "checkin-${var.env}-checkin-worker"
 
   api_functions = {
     api-public = {
       env = {
-        TABLE_MAIN  = var.main_table_name
-        TABLE_AUDIT = var.audit_table_name
-        KMS_KEY_ID  = var.token_key_arn
+        ORIGIN_SECRET = random_password.origin.result
+        TABLE_MAIN    = var.main_table_name
+        TABLE_AUDIT   = var.audit_table_name
+        KMS_KEY_ID    = var.token_key_arn
       }
       statements = [
         {
@@ -37,6 +43,7 @@ locals {
     }
     api-user = {
       env = {
+        ORIGIN_SECRET      = random_password.origin.result
         TABLE_MAIN         = var.main_table_name
         TABLE_AUDIT        = var.audit_table_name
         SCHEDULE_GROUP     = aws_scheduler_schedule_group.this.name
@@ -83,6 +90,7 @@ locals {
     }
     api-admin = {
       env = {
+        ORIGIN_SECRET      = random_password.origin.result
         TABLE_MAIN         = var.main_table_name
         TABLE_AUDIT        = var.audit_table_name
         SCHEDULE_GROUP     = aws_scheduler_schedule_group.this.name
@@ -119,8 +127,9 @@ locals {
     }
     authorizer-user = {
       env = {
-        TABLE_MAIN  = var.main_table_name
-        TABLE_AUDIT = var.audit_table_name
+        ORIGIN_SECRET = random_password.origin.result
+        TABLE_MAIN    = var.main_table_name
+        TABLE_AUDIT   = var.audit_table_name
       }
       statements = [
         {
@@ -323,7 +332,7 @@ resource "aws_lambda_function" "api" {
   s3_bucket     = var.artifacts_bucket
   s3_key        = "${var.artifact_version}/${each.key}.zip"
 
-  # Only table names and the KMS key ARN live here; no secrets.
+  # Holds table names, the KMS key ARN and the origin secret (CloudFront-to-API shared header); acceptable: encrypted at rest by the Lambda default key and never logged.
   # nosemgrep: terraform.aws.security.aws-lambda-environment-unencrypted.aws-lambda-environment-unencrypted
   environment {
     variables = each.value.env
@@ -356,7 +365,7 @@ resource "aws_apigatewayv2_authorizer" "user" {
   authorizer_uri                    = aws_lambda_function.api["authorizer-user"].invoke_arn
   authorizer_payload_format_version = "2.0"
   enable_simple_responses           = true
-  identity_sources                  = ["$request.header.Cookie"]
+  identity_sources                  = ["$request.header.Cookie", "$request.header.X-Origin-Verify"]
   authorizer_result_ttl_in_seconds  = 60
 }
 
@@ -406,4 +415,113 @@ resource "aws_lambda_permission" "authorizer" {
   function_name = aws_lambda_function.api["authorizer-user"].function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.this.execution_arn}/authorizers/${aws_apigatewayv2_authorizer.user.id}"
+}
+
+resource "aws_sns_topic" "alarms" {
+  name = "checkin-${var.env}-alarms"
+}
+
+resource "aws_sns_topic_subscription" "alarm_email" {
+  topic_arn = aws_sns_topic.alarms.arn
+  protocol  = "email"
+  endpoint  = var.alarm_email
+}
+
+resource "aws_cloudwatch_log_metric_filter" "checkin_failed" {
+  name           = "checkin-${var.env}-checkin-failed"
+  log_group_name = aws_cloudwatch_log_group.worker.name
+  pattern        = "{ $.message = \"checkin\" && $.status = \"failed\" }"
+
+  metric_transformation {
+    name          = "CheckinFailed"
+    namespace     = "Checkin/${var.env}"
+    value         = "1"
+    default_value = "0"
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "login_failed" {
+  name           = "checkin-${var.env}-login-failed"
+  log_group_name = aws_cloudwatch_log_group.api["api-public"].name
+  pattern        = "{ $.message = \"request\" && $.route = \"/api/auth/login\" && $.status = 401 }"
+
+  metric_transformation {
+    name          = "LoginFailed"
+    namespace     = "Checkin/${var.env}"
+    value         = "1"
+    default_value = "0"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "worker_errors" {
+  alarm_name          = "checkin-${var.env}-worker-errors"
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  dimensions          = { FunctionName = aws_lambda_function.worker.function_name }
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "checkin_failed" {
+  alarm_name          = "checkin-${var.env}-checkin-failed"
+  namespace           = "Checkin/${var.env}"
+  metric_name         = "CheckinFailed"
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+
+  depends_on = [aws_cloudwatch_log_metric_filter.checkin_failed]
+}
+
+resource "aws_cloudwatch_metric_alarm" "api_5xx" {
+  alarm_name          = "checkin-${var.env}-api-5xx"
+  namespace           = "AWS/ApiGateway"
+  metric_name         = "5xx"
+  dimensions          = { ApiId = aws_apigatewayv2_api.this.id, Stage = "$default" }
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "api_errors" {
+  for_each            = local.api_functions
+  alarm_name          = "checkin-${var.env}-${each.key}-errors"
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  dimensions          = { FunctionName = aws_lambda_function.api[each.key].function_name }
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "login_failed" {
+  alarm_name          = "checkin-${var.env}-login-failed"
+  namespace           = "Checkin/${var.env}"
+  metric_name         = "LoginFailed"
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 20
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+
+  depends_on = [aws_cloudwatch_log_metric_filter.login_failed]
 }

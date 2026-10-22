@@ -8,8 +8,7 @@ import { createEntities } from "@checkin/core/db/entities";
 
 const REGION = "us-east-1";
 
-export async function loadEnv() {
-  const env = process.env.CHECKIN_ENV ?? "dev";
+export async function loadEnv(env = process.env.CHECKIN_ENV ?? "dev") {
   const { Account } = await new STSClient({ region: REGION }).send(new GetCallerIdentityCommand({}));
   return {
     entities: createEntities(

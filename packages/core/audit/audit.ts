@@ -23,6 +23,7 @@ export const AUDIT_ACTIONS = [
   "user.reactivated",
   "user.sessions_revoked",
   "user.deleted",
+  "user.migrated",
   "audit.exported",
 ] as const;
 
@@ -96,31 +97,32 @@ export async function queryAudit(
   const start = dayStart(from).toISOString();
   const end = new Date(dayStart(to).getTime() + DAY_MS - 1).toISOString();
 
-  let rows: AuditItem[];
+  const matching: AuditItem[] = [];
+  const keep = (r: AuditItem) => (!action || r.action === action) && (!actor || !target || r.targetId === target);
+  const collect = async (page: (cursor?: string) => Promise<{ data: AuditItem[]; cursor: string | null }>) => {
+    let cursor: string | null | undefined;
+    do {
+      const res = await page(cursor ?? undefined);
+      matching.push(...res.data.filter(keep));
+      cursor = res.cursor;
+    } while (cursor && matching.length <= MAX_ITEMS);
+  };
+  const options = (cursor?: string) => ({ order: "desc" as const, limit: MAX_ITEMS + 1, cursor });
+
   if (actor) {
-    rows = (
-      await entities.audit.query
-        .byActor({ actorId: actor })
-        .between({ at: start }, { at: end })
-        .go({ pages: "all", order: "desc" })
-    ).data;
-  } else if (target) {
-    rows = (
-      await entities.audit.query
-        .byTarget({ targetId: target })
-        .between({ at: start }, { at: end })
-        .go({ pages: "all", order: "desc" })
-    ).data;
-  } else {
-    const pages = await Promise.all(
-      Array.from({ length: days }, (_, i) => {
-        const day = new Date(dayStart(from).getTime() + (days - 1 - i) * DAY_MS + 12 * 3600_000).toISOString().slice(0, 10);
-        return entities.audit.query.byDay({ day }).go({ pages: "all", order: "desc" });
-      }),
+    await collect((cursor) =>
+      entities.audit.query.byActor({ actorId: actor }).between({ at: start }, { at: end }).go(options(cursor)),
     );
-    rows = pages.flatMap((page) => page.data);
+  } else if (target) {
+    await collect((cursor) =>
+      entities.audit.query.byTarget({ targetId: target }).between({ at: start }, { at: end }).go(options(cursor)),
+    );
+  } else {
+    for (let i = 0; i < days && matching.length <= MAX_ITEMS; i++) {
+      const day = new Date(dayStart(from).getTime() + (days - 1 - i) * DAY_MS + 12 * 3600_000).toISOString().slice(0, 10);
+      await collect((cursor) => entities.audit.query.byDay({ day }).go(options(cursor)));
+    }
   }
-  const matching = rows.filter((r) => (!action || r.action === action) && (!actor || !target || r.targetId === target));
   return { items: matching.slice(0, MAX_ITEMS), truncated: matching.length > MAX_ITEMS };
 }
 

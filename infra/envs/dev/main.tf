@@ -12,6 +12,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "= 6.69.1"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "3.7.2"
+    }
   }
 }
 
@@ -59,6 +63,7 @@ module "backend" {
   audit_table_name = module.data.audit_table_name
   audit_table_arn  = module.data.audit_table_arn
   token_key_arn    = module.data.token_key_arn
+  alarm_email      = "airtontunni@gmail.com"
 }
 
 module "data" {
@@ -71,4 +76,5 @@ module "frontend" {
   env                = "dev"
   api_endpoint       = module.backend.api_endpoint
   auth_domain_prefix = local.auth_domain_prefix
+  origin_secret      = module.backend.origin_secret
 }

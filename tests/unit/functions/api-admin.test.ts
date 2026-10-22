@@ -57,6 +57,7 @@ beforeAll(async () => {
   vi.stubEnv("SCHEDULE_GROUP", "grp");
   vi.stubEnv("WORKER_ARN", "arn:worker");
   vi.stubEnv("SCHEDULER_ROLE_ARN", "arn:role");
+  vi.stubEnv("ORIGIN_SECRET", "s3cret");
   vi.stubEnv("POWERTOOLS_LOG_LEVEL", "SILENT");
   ({ handler } = await import("../../../apps/functions/api-admin/index"));
 });
@@ -70,14 +71,14 @@ beforeEach(() => {
 const send = (
   method: string,
   path: string,
-  extra: { query?: string; body?: unknown; groups?: unknown } = {},
+  extra: { query?: string; body?: unknown; groups?: unknown; headers?: Record<string, string> } = {},
 ) =>
   handler({
     version: "2.0",
     routeKey: "$default",
     rawPath: path,
     rawQueryString: extra.query ?? "",
-    headers: { "cloudfront-viewer-address": "9.9.9.9:1234" },
+    headers: { "cloudfront-viewer-address": "9.9.9.9:1234", "x-origin-verify": "s3cret", ...extra.headers },
     body: extra.body === undefined ? undefined : JSON.stringify(extra.body),
     requestContext: {
       http: {
@@ -214,7 +215,7 @@ it("rejects a malformed invite body", async () => {
     routeKey: "$default",
     rawPath: "/api/admin/invites",
     rawQueryString: "",
-    headers: {},
+    headers: { "x-origin-verify": "s3cret" },
     body: "{bad",
     requestContext: {
       http: {
@@ -683,4 +684,11 @@ it("export rejects invalid query and period without auditing", async () => {
 it("unexpected errors are 500", async () => {
   invites.listInvites.mockRejectedValue(new Error("boom"));
   expect((await send("GET", "/api/admin/invites")).statusCode).toBe(500);
+});
+
+it.each([[{ "x-origin-verify": "wrong" }], [{ "x-origin-verify": "" }]])("rejects origin header %j with 403", async (headers) => {
+  const res = await send("GET", "/api/admin/invites", { headers });
+  expect(res.statusCode).toBe(403);
+  expect(JSON.parse(res.body)).toEqual({ message: "Acesso negado." });
+  expect(invites.listInvites).not.toHaveBeenCalled();
 });

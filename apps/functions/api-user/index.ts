@@ -5,6 +5,7 @@ import { SchedulerClient } from "@aws-sdk/client-scheduler";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { writeAudit } from "@checkin/core/audit/audit";
 import { createEntities } from "@checkin/core/db/entities";
+import { fromCloudFront } from "@checkin/core/http/origin";
 import { requestMeta } from "@checkin/core/domain/invites";
 import { SESSION_COOKIE, revokeSession, touchSession } from "@checkin/core/domain/sessions";
 import {
@@ -91,6 +92,10 @@ const mapError = (err: unknown): [400 | 404 | 409 | 422 | 500 | 502, string] => 
 const app = new Hono<Env>();
 
 app.use("*", async (c, next) => {
+  if (!fromCloudFront(c.req.header("x-origin-verify"), process.env.ORIGIN_SECRET!)) {
+    logger.info("request", { route: c.req.path, status: 403 });
+    return c.json({ message: "Acesso negado." }, 403);
+  }
   if (!["GET", "HEAD"].includes(c.req.method) && c.req.header("x-requested-with") !== "fetch") {
     logger.info("request", { route: c.req.path, status: 403 });
     return c.json(invalidRequest, 403);
