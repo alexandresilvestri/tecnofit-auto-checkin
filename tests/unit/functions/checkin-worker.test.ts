@@ -70,7 +70,7 @@ it.each([
     },
   }));
   const out: string[] = [];
-  const spies = (["stdout", "stderr"] as const).map((stream) =>
+  (["stdout", "stderr"] as const).map((stream) =>
     vi.spyOn(process[stream], "write").mockImplementation((chunk) => (out.push(String(chunk)), true)),
   );
   const { handler: loud } = await import("../../../apps/functions/checkin-worker/index");
