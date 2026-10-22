@@ -12,6 +12,10 @@ export const AUDIT_ACTIONS = [
   "user.login_failed",
   "user.login_locked",
   "user.logout",
+  "schedule.created",
+  "schedule.updated",
+  "schedule.deleted",
+  "user.self_deleted",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

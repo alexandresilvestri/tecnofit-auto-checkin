@@ -1,8 +1,6 @@
 import { parseArgs } from "node:util";
-import { decryptToken } from "@checkin/core/crypto/token";
-import { addSchedule, ClassNotFound, listSchedules, removeSchedule } from "@checkin/core/domain/schedules";
+import { addSchedule, ClassNotFound, listClasses, listSchedules, removeSchedule, TooLate } from "@checkin/core/domain/schedules";
 import { scheduleExpression, type ScheduleSpec } from "@checkin/core/domain/time";
-import { listEvents } from "@checkin/core/tecnofit/client";
 import { loadEnv } from "./env.js";
 
 const USAGE = `Usage:
@@ -38,26 +36,14 @@ if (!required || required.some((flag) => !values[flag as keyof typeof values])) 
 }
 const userId = values.user!;
 
-const deps = await loadEnv();
-const { entities, kms } = deps;
-
-async function accountOf() {
-  const account = (await entities.account.query.byUser({ userId }).go({ limit: 1 })).data[0];
-  if (!account) {
-    console.error(`No account for ${userId}`);
-    process.exit(1);
-  }
-  return account;
-}
+const deps = { ...(await loadEnv()), now: Date.now };
+const { entities } = deps;
 
 if (command === "classes") {
-  const account = await accountOf();
-  const token = await decryptToken(kms, userId, account.tokenEnc);
-  for (const e of await listEvents(token, Number(account.empresaId), values.date!)) {
-    console.log(`${e.name} · ${e.start} · ${e.count}/${e.capacity}`);
+  for (const c of await listClasses(deps, userId, values.date!)) {
+    console.log(`${c.name} · ${values.date} ${c.time} · ${c.count}/${c.capacity}`);
   }
 } else if (command === "add") {
-  const account = await accountOf();
   const startTime = values.start!;
   const date = values.date!;
   const spec: ScheduleSpec = values.weekdays
@@ -66,7 +52,6 @@ if (command === "classes") {
   try {
     const scheduleId = await addSchedule(deps, {
       userId,
-      empresaId: Number(account.empresaId),
       className: values["class-name"]!,
       allowWaitingList: values["waiting-list"] ?? false,
       refDate: date,
@@ -74,8 +59,9 @@ if (command === "classes") {
     });
     console.log(`${scheduleId} · ${scheduleExpression(spec)}`);
   } catch (err) {
-    if (!(err instanceof ClassNotFound)) throw err;
-    console.error("Class not found on that date and time");
+    if (err instanceof TooLate) console.error("Check-in already open for that class");
+    else if (err instanceof ClassNotFound) console.error("Class not found on that date and time");
+    else throw err;
     process.exit(1);
   }
 } else if (command === "list") {

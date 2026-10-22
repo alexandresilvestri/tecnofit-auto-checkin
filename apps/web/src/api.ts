@@ -41,6 +41,25 @@ export function get<T>(path: string): Promise<T> {
   return request<T>(path, { method: "GET" });
 }
 
+export function patch<T = undefined>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export function del<T = undefined>(path: string): Promise<T> {
+  return request<T>(path, { method: "DELETE" });
+}
+
+export function guard(e: unknown): boolean {
+  const status = (e as ApiError | null)?.status;
+  if (status !== 401 && status !== 403) return false;
+  location.assign("/login");
+  return true;
+}
+
 export function errorMessage(error: unknown): string {
   const message = (error as { message?: unknown } | null)?.message;
   return typeof message === "string" && (error as ApiError).status

@@ -41,7 +41,15 @@ export async function runCheckin(deps: CheckinDeps, input: CheckinInput): Promis
   const claim = async (status: "running" | "skipped") => {
     try {
       const ttl = Math.floor(now() / 1000) + 90 * 86400;
-      await entities.execution.create({ ...key, userId, status, attempts: 0, ttl }).go();
+      await entities.execution.create({
+          ...key,
+          userId,
+          className: schedule.className,
+          startTime: schedule.startTime,
+          status,
+          attempts: 0,
+          ttl,
+        }).go();
       return true;
     } catch (err) {
       if (isConditionalFailure(err)) return false;
