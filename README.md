@@ -4,16 +4,6 @@ Automatic check-in for classes at a Tecnofit box. Invite-only access.
 
 The user connects their Tecnofit account, schedules a class (one-off or weekly) and the system checks in on its own. Tecnofit opens check-in 12 h before the class; the job runs at `class − 11h59`, timezone `America/Sao_Paulo`.
 
-## Architecture
-
-- CloudFront + S3: SPA (`apps/web`) and `/api/*` proxy.
-- API Gateway HTTP API + Lambdas (`apps/functions/*`): `api-public`, `api-user`, `api-admin`, `authorizer-user`, check-in worker. Direct access to API Gateway returns 403 (`X-Origin-Verify` header).
-- DynamoDB: `checkin-<env>-main` and `checkin-<env>-audit` (PITR enabled).
-- EventBridge Scheduler: one schedule per booking, group `checkin-<env>`.
-- KMS: encrypted Tecnofit tokens (`alias/checkin-<env>-token`).
-- Cognito: pool `checkin-<env>-admin` (MFA required) for the admin.
-- Infra in Terraform (`infra/`), applied by HCP Terraform.
-
 <img width="1058" height="913" alt="image" src="https://github.com/user-attachments/assets/a0c47960-3fd7-49f7-b08c-7401b8c52a32" />
 
 ## Environments
@@ -25,56 +15,33 @@ The user connects their Tecnofit account, schedules a class (one-off or weekly) 
 
 Org `ATS_org`, project `tecnofit-auto-checkin`, region `us-east-1`. Bootstrap (OIDC roles): workspace `checkin-bootstrap`.
 
-Flow: PR (tests + plan) → merge into `main` deploys to dev → `promote.yml`, triggered manually from `main`, takes a `sha` to prod. Details in [docs/runbook.md](docs/runbook.md).
+Flow: PR (tests + plan) → merge into `main` deploys to dev → `promote.yml`, triggered manually from `main`, takes a `sha` to prod. Details in [docs/ci-cd.md](docs/ci-cd.md).
 
-## Local development
+## Quickstart
 
-Node >= 24 (`.nvmrc`).
+Node >= 24 (`.nvmrc`) and Docker.
 
 ```bash
 npm ci
-npm run moto:up
-npm run test:unit
-npm run test:integration
-npm run e2e
-npm run lint
-npm run typecheck
-npm run build
-npm run web:dev
-```
-
-### Docker
-
-```bash
 docker compose up
 ```
 
-- Web at http://localhost:5173, API at http://localhost:3000. moto is internal, so `npm run moto:up` and integration tests keep their own.
-- `scripts/local-api.ts` runs the real Lambda handlers on moto and creates tables, KMS key and schedule group on start.
-- Admin login is bypassed locally. Tecnofit is the real API.
-- The check-in worker never fires: moto Scheduler does not invoke targets.
-- moto keeps data in memory. Restarting it wipes the data; `api` restarts with it and recreates the resources.
+Web at http://localhost:5173, API at http://localhost:3000. Tests, scripts and local limits are in [docs/development.md](docs/development.md).
 
-## Operations scripts
+## Documentation
 
-Use the shell's AWS credentials. `CHECKIN_ENV` selects the environment (default `dev`).
+| Document | Covers |
+| --- | --- |
+| [Architecture](docs/architecture.md) | Components, request path, security model, check-in flow, user lifecycle |
+| [API](docs/api.md) | Auth, errors, throttling, routes; full contract in [openapi.yaml](docs/openapi.yaml) |
+| [Data model](docs/data-model.md) | DynamoDB tables, entities, keys, access patterns; diagram in [data-model.dbml](docs/data-model.dbml) |
+| [Tecnofit integration](docs/tecnofit-integration.md) | Tecnofit endpoints the client calls, errors, retries |
+| [Infrastructure](docs/infrastructure.md) | Terraform roots and modules, HCP Terraform, IAM, KMS, CloudFront, Cognito, alarms |
+| [CI/CD](docs/ci-cd.md) | Workflows, release and promotion, rollback, Dependabot |
+| [Development](docs/development.md) | Local stack, tests, scripts, conventions, operations scripts |
+| [Runbook](docs/runbook.md) | Deploy, promotion, rollback, incidents, restore, secret rotation, alarms, admin reset, teardown |
+| [Decisions](docs/adr/README.md) | Architecture decision records |
 
-```bash
-TECNOFIT_EMAIL=... TECNOFIT_PASSWORD=... CHECKIN_ENV=dev npm run connect
-CHECKIN_ENV=dev npm run invite -- --label "John Doe"
-CHECKIN_ENV=dev npm run schedule -- classes --user <userId> --date YYYY-MM-DD
-CHECKIN_ENV=dev npm run schedule -- add --user <userId> --class-name "<name>" --start HH:mm --date YYYY-MM-DD [--weekdays 1,3,5] [--waiting-list]
-CHECKIN_ENV=dev npm run schedule -- list --user <userId>
-CHECKIN_ENV=dev npm run schedule -- remove --user <userId> --schedule <scheduleId>
-npm run migrate
-npm run migrate -- --apply
-```
+## License
 
-- `connect`: creates/updates a user's profile and Tecnofit account.
-- `invite`: generates a `/convite#<token>` link with expiry.
-- `schedule`: lists classes and manages bookings.
-- `migrate`: copies users from dev to prod (dry run without `--apply`); always uses dev as source and prod as target.
-
-## Operations
-
-[docs/runbook.md](docs/runbook.md): deploy, promotion, rollback, incidents, restore, secret rotation, alarms, admin reset and environment teardown.
+[MIT](LICENSE)

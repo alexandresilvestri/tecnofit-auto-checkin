@@ -1,0 +1,1658 @@
+openapi: 3.1.0
+info:
+  title: Tecnofit Auto Check-in API
+  version: 1.0.0
+  license:
+    name: MIT
+    identifier: MIT
+  description: |
+    HTTP API behind the web app. Hono handlers run on AWS Lambda behind an API Gateway HTTP API (payload 2.0).
+
+    - Paths keep the `/api` prefix. Call them on the CloudFront distribution URL.
+    - CloudFront adds the `X-Origin-Verify` header. Requests without the right value get `403 {"message":"Acesso negado."}` or a gateway error.
+    - Error bodies are always `{"message": "<text>"}`. Handler messages are pt-BR.
+    - Gateway errors use English messages: `401 Unauthorized`, `403 Forbidden`, `404 Not Found` (unknown route), `429 Too Many Requests`.
+    - See docs/api.md for throttling.
+
+    Guide: `docs/api.md`.
+servers:
+  - url: /
+    description: Relative to the CloudFront distribution URL. Only CloudFront reaches the API.
+tags:
+  - name: public
+    description: No authentication. Invite check, onboarding, login and health.
+  - name: user
+    description: Student routes. Need the `sid` session cookie checked by the user Lambda authorizer.
+  - name: admin
+    description: Operator routes. Need a Cognito access token from the admin pool and the `admin` group.
+paths:
+  /api/health:
+    get:
+      tags: [public]
+      operationId: getHealth
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: The API answers.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '403':
+          $ref: '#/components/responses/OriginDenied'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/invites/check:
+    post:
+      tags: [public]
+      operationId: checkInvite
+      summary: Check an invite token
+      description: Returns whether the invite is `pending` and not expired. Invites expire 15 minutes after creation.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestedWith'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteCheckRequest'
+      responses:
+        '200':
+          description: Invite state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteCheckResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/PublicPostForbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/onboarding:
+    post:
+      tags: [public]
+      operationId: completeOnboarding
+      summary: Redeem an invite and create the account
+      description: |
+        Logs in to Tecnofit with the given credentials, creates the profile, the Tecnofit account link and a session, and marks the invite `used`.
+        Five rejected Tecnofit credential attempts burn the invite.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestedWith'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingRequest'
+      responses:
+        '201':
+          description: Account created. The session cookie is set.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/SetSessionCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmptyObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/InvalidCredentials'
+        '403':
+          $ref: '#/components/responses/PublicPostForbidden'
+        '409':
+          description: A profile with this e-mail already exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                accountExists:
+                  summary: This account is already registered. Log in.
+                  value:
+                    message: Esta conta já está cadastrada. Faça login.
+        '410':
+          description: The invite is unknown, not pending, or expired.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                inviteInvalid:
+                  summary: Invalid or expired invite.
+                  value:
+                    message: Convite inválido ou expirado.
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '502':
+          $ref: '#/components/responses/TecnofitUnavailable'
+  /api/auth/login:
+    post:
+      tags: [public]
+      operationId: login
+      summary: Log in with Tecnofit credentials
+      description: |
+        Checks the credentials against Tecnofit, stores the new Tecnofit token and opens a session.
+        Unknown e-mails and suspended profiles also get 401.
+        Five failures for one e-mail lock it until 15 minutes after the first failure.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestedWith'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '204':
+          description: Logged in. The session cookie is set.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/SetSessionCookie'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/InvalidCredentials'
+        '403':
+          $ref: '#/components/responses/PublicPostForbidden'
+        '429':
+          description: Login locked for this e-mail, or gateway throttling.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                loginLocked:
+                  summary: Too many attempts. Try again in 15 minutes.
+                  value:
+                    message: Muitas tentativas. Tente novamente em 15 minutos.
+                throttled:
+                  summary: API Gateway throttling.
+                  value:
+                    message: Too Many Requests
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '502':
+          $ref: '#/components/responses/TecnofitUnavailable'
+  /api/me:
+    get:
+      tags: [user]
+      operationId: getMe
+      summary: Current user
+      description: Returns the profile name and the Tecnofit account state. Reissues the session cookie when the session was last touched more than 24 hours ago.
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Current user.
+          headers:
+            Set-Cookie:
+              description: Present only when the session is refreshed. Same value as at login.
+              schema:
+                type: string
+              example: sid=<token>; Max-Age=34560000; Path=/api; HttpOnly; Secure; SameSite=Strict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '401':
+          description: No `Cookie` header, or the profile no longer exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                gateway:
+                  summary: Gateway, no Cookie header.
+                  value:
+                    message: Unauthorized
+                invalidSession:
+                  summary: Invalid session.
+                  value:
+                    message: Sessão inválida.
+        '403':
+          $ref: '#/components/responses/UserReadForbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [user]
+      operationId: deleteMe
+      summary: Delete own account
+      description: Deletes the user's schedules (with their EventBridge schedules), executions, Tecnofit account link, profile and sessions. Writes `user.self_deleted` to the audit log and clears the cookie.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestedWith'
+      responses:
+        '204':
+          description: Account deleted.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/ClearSessionCookie'
+        '401':
+          $ref: '#/components/responses/SessionUnauthorized'
+        '403':
+          $ref: '#/components/responses/UserWriteForbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/auth/logout:
+    post:
+      tags: [user]
+      operationId: logout
+      summary: Log out
+      description: Deletes the session, writes `user.logout` to the audit log and clears the cookie. The request body is ignored.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestedWith'
+      responses:
+        '204':
+          description: Logged out.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/ClearSessionCookie'
+        '401':
+          $ref: '#/components/responses/SessionUnauthorized'
+        '403':
+          $ref: '#/components/responses/UserWriteForbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/classes:
+    get:
+      tags: [user]
+      operationId: listClasses
+      summary: List classes on a day
+      description: Reads the box agenda from Tecnofit for one day, sorted by time.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/DateQuery'
+      responses:
+        '200':
+          description: Classes on that day.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClassSlot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/SessionUnauthorized'
+        '403':
+          $ref: '#/components/responses/UserReadForbidden'
+        '409':
+          $ref: '#/components/responses/TecnofitExpired'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '502':
+          $ref: '#/components/responses/TecnofitUnavailable'
+  /api/schedules:
+    get:
+      tags: [user]
+      operationId: listSchedules
+      summary: List own schedules
+      description: Weekly schedules come first, ordered by lowest weekday then time. One-off schedules follow, ordered by date then time.
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Schedule cards.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ScheduleCard'
+        '401':
+          $ref: '#/components/responses/SessionUnauthorized'
+        '403':
+          $ref: '#/components/responses/UserReadForbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [user]
+      operationId: createSchedule
+      summary: Create a schedule
+      description: |
+        Looks up the Tecnofit agenda on `date` for a class with exactly `className` starting at `startTime`.
+        For `weekly`, `date` is only the reference day for that lookup.
+        For `once`, the class must start more than 11 h 59 min from now.
+        Creates an EventBridge Scheduler job that fires 11 h 59 min before each class.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestedWith'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleCreate'
+      responses:
+        '201':
+          description: Schedule created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/SessionUnauthorized'
+        '403':
+          $ref: '#/components/responses/UserWriteForbidden'
+        '409':
+          $ref: '#/components/responses/TecnofitExpired'
+        '422':
+          description: The class is not on the agenda, or a one-off class is too close.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                classNotFound:
+                  summary: Class not found on the agenda.
+                  value:
+                    message: Aula não encontrada na agenda.
+                tooLate:
+                  summary: Check-in for this class is already open. Use the Tecnofit app.
+                  value:
+                    message: O check-in desta aula já foi liberado. Faça pelo app da Tecnofit.
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '502':
+          $ref: '#/components/responses/TecnofitUnavailable'
+  /api/schedules/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ScheduleId'
+    patch:
+      tags: [user]
+      operationId: updateSchedule
+      summary: Pause, resume or change waiting-list option
+      description: Changing `active` enables or disables the EventBridge schedule. Only the keys present are changed.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestedWith'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SchedulePatch'
+      responses:
+        '204':
+          description: Schedule updated.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/SessionUnauthorized'
+        '403':
+          $ref: '#/components/responses/UserWriteForbidden'
+        '404':
+          $ref: '#/components/responses/ScheduleNotFound'
+        '409':
+          description: Resuming a one-off schedule whose job already fired, or whose EventBridge schedule is gone.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                finished:
+                  summary: This schedule has already run.
+                  value:
+                    message: Este agendamento já foi executado.
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [user]
+      operationId: deleteSchedule
+      summary: Delete a schedule
+      description: Deletes the EventBridge schedule and the schedule record. Past executions stay.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestedWith'
+      responses:
+        '204':
+          description: Schedule deleted.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/SessionUnauthorized'
+        '403':
+          $ref: '#/components/responses/UserWriteForbidden'
+        '404':
+          $ref: '#/components/responses/ScheduleNotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/executions:
+    get:
+      tags: [user]
+      operationId: listExecutions
+      summary: List own check-in executions
+      description: Returns 20 executions per page, newest class date first.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: One page of executions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/SessionUnauthorized'
+        '403':
+          $ref: '#/components/responses/UserReadForbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/invites:
+    post:
+      tags: [admin]
+      operationId: createInvite
+      summary: Create an invite
+      description: Creates a `pending` invite valid for 15 minutes and writes `invite.created` to the audit log. The body may be empty.
+      security:
+        - adminJwt: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteCreateRequest'
+      responses:
+        '201':
+          description: Invite created. The raw token is returned only here.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      tags: [admin]
+      operationId: listInvites
+      summary: List invites
+      description: Returns all invites, newest first. A `pending` invite past `expiresAt` is reported as `expired`.
+      security:
+        - adminJwt: []
+      responses:
+        '200':
+          description: All invites.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InviteSummary'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/invites/{id}:
+    delete:
+      tags: [admin]
+      operationId: revokeInvite
+      summary: Revoke an invite
+      description: Sets a `pending` invite to `revoked` and writes `invite.revoked` to the audit log.
+      security:
+        - adminJwt: []
+      parameters:
+        - $ref: '#/components/parameters/InviteId'
+      responses:
+        '204':
+          description: Invite revoked.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          description: No invite with this id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                notFound:
+                  summary: Invite not found.
+                  value:
+                    message: Convite não encontrado.
+        '409':
+          description: The invite is not `pending`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                notPending:
+                  summary: Only pending invites can be revoked.
+                  value:
+                    message: Só convites pendentes podem ser revogados.
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/users:
+    get:
+      tags: [admin]
+      operationId: listUsers
+      summary: List users
+      description: Returns all profiles, newest first.
+      security:
+        - adminJwt: []
+      responses:
+        '200':
+          description: All users.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserSummary'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    get:
+      tags: [admin]
+      operationId: getUser
+      summary: User detail
+      description: Returns the profile, account state, schedules, latest 20 executions, sessions and latest 50 audit entries that target the user. Tokens and session hashes are left out.
+      security:
+        - adminJwt: []
+      responses:
+        '200':
+          description: User detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [admin]
+      operationId: deleteUser
+      summary: Delete a user
+      description: Deletes the same data as `DELETE /api/me`. Writes `user.deleted` with the reason to the audit log. The body is required.
+      security:
+        - adminJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonRequest'
+      responses:
+        '204':
+          description: User deleted.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/users/{id}/suspend:
+    post:
+      tags: [admin]
+      operationId: suspendUser
+      summary: Suspend a user
+      description: Sets the profile to `suspended`, deletes all its sessions and pauses its active schedules with `pausedBySuspension`. Writes `user.suspended` with the reason to the audit log.
+      security:
+        - adminJwt: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonRequest'
+      responses:
+        '204':
+          description: User suspended.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/users/{id}/reactivate:
+    post:
+      tags: [admin]
+      operationId: reactivateUser
+      summary: Reactivate a user
+      description: Sets the profile to `active` and resumes schedules paused by suspension. Writes `user.reactivated` to the audit log.
+      security:
+        - adminJwt: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204':
+          description: User reactivated.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/users/{id}/revoke-sessions:
+    post:
+      tags: [admin]
+      operationId: revokeUserSessions
+      summary: Revoke all sessions of a user
+      description: Deletes every session of the user. Writes `user.sessions_revoked` to the audit log.
+      security:
+        - adminJwt: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204':
+          description: Sessions revoked.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/executions:
+    get:
+      tags: [admin]
+      operationId: listExecutionsByDate
+      summary: List all executions for a class date
+      security:
+        - adminJwt: []
+      parameters:
+        - $ref: '#/components/parameters/DateQuery'
+      responses:
+        '200':
+          description: Every execution on that class date, all users.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminExecution'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/audit:
+    get:
+      tags: [admin]
+      operationId: queryAudit
+      summary: Query the audit log
+      description: |
+        Returns entries from `from` to `to` (inclusive, America/Sao_Paulo days, 1 to 31 days), newest first.
+        Returns at most 1000 entries. `truncated` is `true` when more entries matched.
+        A period outside 1 to 31 days, or `to` before `from`, returns 400.
+      security:
+        - adminJwt: []
+      parameters:
+        - $ref: '#/components/parameters/AuditFrom'
+        - $ref: '#/components/parameters/AuditTo'
+        - $ref: '#/components/parameters/AuditActor'
+        - $ref: '#/components/parameters/AuditAction'
+        - $ref: '#/components/parameters/AuditTarget'
+      responses:
+        '200':
+          description: Matching entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/audit/export:
+    get:
+      tags: [admin]
+      operationId: exportAudit
+      summary: Export the audit log as CSV
+      description: |
+        Same filters and limits as `GET /api/admin/audit`. The CSV holds at most 1000 rows and has no truncation marker.
+        Writes `audit.exported` with the filter to the audit log.
+      security:
+        - adminJwt: []
+      parameters:
+        - $ref: '#/components/parameters/AuditFrom'
+        - $ref: '#/components/parameters/AuditTo'
+        - $ref: '#/components/parameters/AuditActor'
+        - $ref: '#/components/parameters/AuditAction'
+        - $ref: '#/components/parameters/AuditTarget'
+      responses:
+        '200':
+          description: |
+            CSV with CRLF line endings and no byte order mark.
+            Header: `at,actorType,actorId,action,targetType,targetId,result,ip,userAgent,metadata`.
+            `metadata` is JSON. A cell starting with `=`, `+`, `-` or `@` gets a leading `'`.
+            Cells with `"`, `,`, CR or LF are quoted.
+          headers:
+            Content-Disposition:
+              description: Always an attachment named after the period.
+              schema:
+                type: string
+              example: attachment; filename="auditoria-2026-07-01-2026-07-31.csv"
+          content:
+            text/csv:
+              schema:
+                type: string
+              example: "at,actorType,actorId,action,targetType,targetId,result,ip,userAgent,metadata\r\n2026-07-01T13:00:00.000Z,admin,<sub>,user.suspended,user,u_<uuid>,success,203.0.113.7,Mozilla/5.0,\"{\"\"reason\"\":\"\"abuso\"\"}\""
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: sid
+      description: |
+        Opaque session token set by `POST /api/onboarding` and `POST /api/auth/login`.
+        Checked by a REQUEST Lambda authorizer (identity sources `Cookie` and `X-Origin-Verify`, result cached 60 s).
+    adminJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Cognito access token from the admin user pool, validated by an API Gateway JWT authorizer.
+        The handler also requires `admin` in the `cognito:groups` claim, else 403 `Acesso negado.`.
+  parameters:
+    XRequestedWith:
+      name: X-Requested-With
+      in: header
+      required: true
+      description: CSRF guard. Without it the handler returns 403 `Requisição inválida.`.
+      schema:
+        type: string
+        const: fetch
+    ScheduleId:
+      name: id
+      in: path
+      required: true
+      description: Schedule id (`s_<uuid>`).
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    InviteId:
+      name: id
+      in: path
+      required: true
+      description: Invite id (SHA-256 hex of the invite token).
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    UserId:
+      name: id
+      in: path
+      required: true
+      description: User id (`u_<uuid>`).
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    DateQuery:
+      name: date
+      in: query
+      required: true
+      description: Class date, `YYYY-MM-DD`.
+      schema:
+        $ref: '#/components/schemas/IsoDate'
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque `cursor` from the previous page. An invalid value returns 400.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 2048
+    AuditFrom:
+      name: from
+      in: query
+      required: true
+      description: First day, `YYYY-MM-DD`, America/Sao_Paulo.
+      schema:
+        $ref: '#/components/schemas/IsoDate'
+    AuditTo:
+      name: to
+      in: query
+      required: true
+      description: Last day (inclusive), `YYYY-MM-DD`, America/Sao_Paulo.
+      schema:
+        $ref: '#/components/schemas/IsoDate'
+    AuditActor:
+      name: actor
+      in: query
+      required: false
+      description: Exact `actorId`.
+      schema:
+        $ref: '#/components/schemas/AuditFilterText'
+    AuditAction:
+      name: action
+      in: query
+      required: false
+      description: Exact `action`.
+      schema:
+        $ref: '#/components/schemas/AuditFilterText'
+    AuditTarget:
+      name: target
+      in: query
+      required: false
+      description: Exact `targetId`.
+      schema:
+        $ref: '#/components/schemas/AuditFilterText'
+  headers:
+    SetSessionCookie:
+      description: Session cookie. Max-Age is 400 days.
+      schema:
+        type: string
+      example: sid=<token>; Max-Age=34560000; Path=/api; HttpOnly; Secure; SameSite=Strict
+    ClearSessionCookie:
+      description: Expires the session cookie.
+      schema:
+        type: string
+      example: sid=; Max-Age=0; Path=/api; HttpOnly; Secure; SameSite=Strict
+  responses:
+    BadRequest:
+      description: Body, query or path parameter failed validation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            invalid:
+              summary: Invalid request.
+              value:
+                message: Requisição inválida.
+    InvalidCredentials:
+      description: Tecnofit rejected the credentials, or the login is not allowed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            invalidCredentials:
+              summary: Invalid e-mail or password.
+              value:
+                message: E-mail ou senha inválidos.
+    OriginDenied:
+      description: Missing or wrong `X-Origin-Verify`. The request did not come through CloudFront.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            origin:
+              summary: Access denied.
+              value:
+                message: Acesso negado.
+    PublicPostForbidden:
+      description: Wrong origin, or missing `X-Requested-With`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            origin:
+              summary: Access denied (wrong origin).
+              value:
+                message: Acesso negado.
+            csrf:
+              summary: Invalid request (missing X-Requested-With).
+              value:
+                message: Requisição inválida.
+    SessionUnauthorized:
+      description: Gateway response when the request has no `Cookie` header.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            gateway:
+              summary: Gateway, no Cookie header.
+              value:
+                message: Unauthorized
+    UserReadForbidden:
+      description: The authorizer denied the request (no `sid`, unknown session, wrong origin). The handler also re-checks the origin.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            authorizer:
+              summary: Gateway, authorizer denied.
+              value:
+                message: Forbidden
+            origin:
+              summary: Access denied (handler origin check).
+              value:
+                message: Acesso negado.
+    UserWriteForbidden:
+      description: The authorizer denied the request, the origin is wrong, or `X-Requested-With` is missing.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            authorizer:
+              summary: Gateway, authorizer denied.
+              value:
+                message: Forbidden
+            origin:
+              summary: Access denied (handler origin check).
+              value:
+                message: Acesso negado.
+            csrf:
+              summary: Invalid request (missing X-Requested-With).
+              value:
+                message: Requisição inválida.
+    AdminUnauthorized:
+      description: Gateway response when the bearer token is missing, invalid or expired.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            gateway:
+              summary: Gateway, JWT authorizer.
+              value:
+                message: Unauthorized
+    AdminForbidden:
+      description: The token has no `admin` group, or the origin is wrong.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            denied:
+              summary: Access denied.
+              value:
+                message: Acesso negado.
+    ScheduleNotFound:
+      description: No schedule with this id for the current user.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            notFound:
+              summary: Schedule not found.
+              value:
+                message: Agendamento não encontrado.
+    UserNotFound:
+      description: No profile with this id.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            notFound:
+              summary: User not found.
+              value:
+                message: Usuário não encontrado.
+    TecnofitExpired:
+      description: Tecnofit rejected the stored token. The account status becomes `reconnect`; the user must log in again.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            expired:
+              summary: Tecnofit connection expired. Reconnect the account.
+              value:
+                message: Conexão com a Tecnofit expirada. Reconecte a conta.
+    TecnofitUnavailable:
+      description: Tecnofit failed or returned an unexpected response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            unavailable:
+              summary: Tecnofit unavailable. Try again shortly.
+              value:
+                message: Tecnofit indisponível. Tente novamente em instantes.
+    TooManyRequests:
+      description: API Gateway throttling.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            throttled:
+              summary: API Gateway throttling.
+              value:
+                message: Too Many Requests
+    InternalError:
+      description: Unmapped error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            unexpected:
+              summary: Unexpected error.
+              value:
+                message: Erro inesperado.
+  schemas:
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+    EmptyObject:
+      type: object
+      maxProperties: 0
+    IsoDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      examples: ['2026-08-03']
+    ClockTime:
+      type: string
+      description: 24-hour `HH:mm`, America/Sao_Paulo.
+      pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+      examples: ['18:30']
+    ClassSlotTime:
+      type: string
+      description: Class slot `YYYY-MM-DD HH:mm`, America/Sao_Paulo.
+      examples: ['2026-08-03 18:30']
+    Timestamp:
+      type: string
+      format: date-time
+      description: ISO 8601 in UTC.
+    ExecutionStatus:
+      type: string
+      enum: [running, success, waitlisted, failed, skipped]
+    WorkerErrorCode:
+      type: string
+      description: Set by the check-in worker when `status` is `failed`.
+      enum: [window_mismatch, timeout, class_not_found, full, unauthorized, invalid_response, unexpected]
+    InviteStatus:
+      type: string
+      description: '`expired` is computed when listing; it is never stored.'
+      enum: [pending, used, expired, revoked, burned]
+    ScheduleKind:
+      type: string
+      enum: [weekly, once]
+    AccountStatus:
+      type: string
+      description: '`reconnect` means Tecnofit rejected the stored token.'
+      enum: [ok, reconnect]
+    ProfileStatus:
+      type: string
+      enum: [active, suspended]
+    AuditActorType:
+      type: string
+      enum: [user, anonymous, system, cli, admin]
+    AuditResult:
+      type: string
+      enum: [success, denied, error]
+    AuditAction:
+      type: string
+      enum:
+        - invite.created
+        - invite.redeemed
+        - invite.redeem_failed
+        - invite.burned
+        - user.login
+        - user.login_failed
+        - user.login_locked
+        - user.logout
+        - schedule.created
+        - schedule.updated
+        - schedule.deleted
+        - user.self_deleted
+        - admin.login
+        - invite.revoked
+        - user.suspended
+        - user.reactivated
+        - user.sessions_revoked
+        - user.deleted
+        - user.migrated
+        - audit.exported
+    AuditFilterText:
+      type: string
+      minLength: 1
+      maxLength: 200
+    Weekday:
+      type: integer
+      description: 0 is Sunday, 6 is Saturday.
+      minimum: 0
+      maximum: 6
+    Health:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          const: true
+    InviteCheckRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          $ref: '#/components/schemas/InviteToken'
+    InviteToken:
+      type: string
+      description: Raw invite token from the `/convite#<token>` link.
+      minLength: 1
+      maxLength: 128
+    InviteCheckResult:
+      type: object
+      required: [valid]
+      properties:
+        valid:
+          type: boolean
+    Email:
+      type: string
+      format: email
+      maxLength: 254
+      description: Tecnofit login e-mail. Lowercased before lookup.
+    Password:
+      type: string
+      description: Tecnofit password. Never stored.
+      minLength: 1
+      maxLength: 256
+    OnboardingRequest:
+      type: object
+      required: [token, email, password, consentVersion]
+      properties:
+        token:
+          $ref: '#/components/schemas/InviteToken'
+        email:
+          $ref: '#/components/schemas/Email'
+        password:
+          $ref: '#/components/schemas/Password'
+        consentVersion:
+          $ref: '#/components/schemas/IsoDate'
+          description: Version of the consent text the user accepted. Stored in the `invite.redeemed` audit entry.
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          $ref: '#/components/schemas/Email'
+        password:
+          $ref: '#/components/schemas/Password'
+    Me:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: Name from the Tecnofit profile.
+        boxName:
+          type: string
+          description: Absent when the user has no Tecnofit account link.
+        accountStatus:
+          $ref: '#/components/schemas/AccountStatus'
+    ClassSlot:
+      type: object
+      required: [name, time, count, capacity]
+      properties:
+        name:
+          type: string
+        time:
+          type: string
+          description: Start time `HH:mm`.
+        count:
+          type: number
+          description: As reported by Tecnofit.
+        capacity:
+          type: number
+          description: As reported by Tecnofit.
+    ScheduleFields:
+      type: object
+      required: [className, startTime, date, allowWaitingList]
+      properties:
+        className:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Exact class name on the Tecnofit agenda.
+        startTime:
+          $ref: '#/components/schemas/ClockTime'
+        date:
+          $ref: '#/components/schemas/IsoDate'
+        allowWaitingList:
+          type: boolean
+          description: Join the waiting list when the class is full.
+    WeeklyScheduleCreate:
+      allOf:
+        - $ref: '#/components/schemas/ScheduleFields'
+        - type: object
+          required: [kind, weekdays]
+          properties:
+            kind:
+              const: weekly
+            weekdays:
+              type: array
+              minItems: 1
+              uniqueItems: true
+              items:
+                $ref: '#/components/schemas/Weekday'
+    OnceScheduleCreate:
+      allOf:
+        - $ref: '#/components/schemas/ScheduleFields'
+        - type: object
+          required: [kind]
+          properties:
+            kind:
+              const: once
+    ScheduleCreate:
+      oneOf:
+        - $ref: '#/components/schemas/WeeklyScheduleCreate'
+        - $ref: '#/components/schemas/OnceScheduleCreate'
+      discriminator:
+        propertyName: kind
+        mapping:
+          weekly: '#/components/schemas/WeeklyScheduleCreate'
+          once: '#/components/schemas/OnceScheduleCreate'
+    ScheduleCreated:
+      type: object
+      required: [scheduleId]
+      properties:
+        scheduleId:
+          type: string
+          description: '`s_<uuid>`.'
+    SchedulePatch:
+      type: object
+      description: At least one of the two keys is required.
+      properties:
+        active:
+          type: boolean
+          description: '`false` pauses, `true` resumes.'
+        allowWaitingList:
+          type: boolean
+      anyOf:
+        - required: [active]
+        - required: [allowWaitingList]
+    ScheduleBase:
+      type: object
+      required: [scheduleId, className, startTime, kind, allowWaitingList, active]
+      properties:
+        scheduleId:
+          type: string
+        className:
+          type: string
+        startTime:
+          $ref: '#/components/schemas/ClockTime'
+        kind:
+          $ref: '#/components/schemas/ScheduleKind'
+        weekdays:
+          type: array
+          description: Present for `weekly` only.
+          items:
+            $ref: '#/components/schemas/Weekday'
+        date:
+          $ref: '#/components/schemas/IsoDate'
+          description: Present for `once` only.
+        allowWaitingList:
+          type: boolean
+        active:
+          type: boolean
+    ScheduleCard:
+      allOf:
+        - $ref: '#/components/schemas/ScheduleBase'
+        - type: object
+          required: [finished, nextClass, last]
+          properties:
+            finished:
+              type: boolean
+              description: '`true` for a `once` schedule whose job already fired.'
+            nextClass:
+              description: Next class whose job has not fired yet. `null` when paused or finished.
+              oneOf:
+                - $ref: '#/components/schemas/ClassSlotTime'
+                - type: 'null'
+            last:
+              description: Latest execution, or `null`.
+              oneOf:
+                - $ref: '#/components/schemas/LastExecution'
+                - type: 'null'
+    LastExecution:
+      type: object
+      required: [classDate, status]
+      properties:
+        classDate:
+          $ref: '#/components/schemas/IsoDate'
+        status:
+          $ref: '#/components/schemas/ExecutionStatus'
+    Execution:
+      type: object
+      required: [scheduleId, status, attempts]
+      properties:
+        scheduleId:
+          type: string
+        className:
+          type: string
+        startTime:
+          $ref: '#/components/schemas/ClockTime'
+        status:
+          $ref: '#/components/schemas/ExecutionStatus'
+        attempts:
+          type: number
+          description: Check-in calls made.
+        error:
+          $ref: '#/components/schemas/WorkerErrorCode'
+    UserExecution:
+      allOf:
+        - $ref: '#/components/schemas/Execution'
+        - type: object
+          required: [classDate]
+          properties:
+            classDate:
+              $ref: '#/components/schemas/IsoDate'
+    ExecutionPage:
+      type: object
+      required: [items, cursor]
+      properties:
+        items:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/UserExecution'
+        cursor:
+          description: Pass as `cursor` to get the next page. `null` on the last page.
+          type: [string, 'null']
+    AdminExecution:
+      allOf:
+        - $ref: '#/components/schemas/Execution'
+        - type: object
+          required: [userId]
+          properties:
+            userId:
+              type: string
+    InviteCreateRequest:
+      type: object
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 60
+          description: Free note to recognize the invite.
+    ReasonRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Trimmed first; the trimmed text must have 1 to 200 characters. Stored in the audit entry.
+    InviteCreated:
+      type: object
+      required: [token, expiresAt]
+      properties:
+        token:
+          type: string
+          description: Raw token. Share it as `<web-url>/convite#<token>`.
+        expiresAt:
+          type: number
+          description: Expiry, epoch milliseconds.
+    InviteSummary:
+      type: object
+      required: [inviteId, status, createdAt, expiresAt]
+      properties:
+        inviteId:
+          type: string
+        label:
+          type: string
+        status:
+          $ref: '#/components/schemas/InviteStatus'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        expiresAt:
+          type: number
+          description: Epoch milliseconds.
+        usedBy:
+          type: string
+          description: User id that redeemed the invite.
+        usedAt:
+          $ref: '#/components/schemas/Timestamp'
+    UserSummary:
+      type: object
+      required: [userId, name, email, status, createdAt]
+      properties:
+        userId:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          description: Tecnofit login e-mail.
+        status:
+          $ref: '#/components/schemas/ProfileStatus'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+    AdminSchedule:
+      allOf:
+        - $ref: '#/components/schemas/ScheduleBase'
+        - type: object
+          properties:
+            pausedBySuspension:
+              type: boolean
+              description: '`true` when a suspension paused the schedule.'
+    SessionSummary:
+      type: object
+      required: [createdAt, lastSeenAt, ip, userAgent]
+      properties:
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        lastSeenAt:
+          $ref: '#/components/schemas/Timestamp'
+        ip:
+          type: string
+        userAgent:
+          type: string
+    UserDetail:
+      type: object
+      required: [profile, account, schedules, executions, sessions, audit]
+      properties:
+        profile:
+          $ref: '#/components/schemas/UserSummary'
+        account:
+          oneOf:
+            - type: object
+              required: [boxName, status]
+              properties:
+                boxName:
+                  type: string
+                status:
+                  $ref: '#/components/schemas/AccountStatus'
+            - type: 'null'
+        schedules:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminSchedule'
+        executions:
+          type: array
+          description: Latest 20, newest class date first.
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/UserExecution'
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionSummary'
+        audit:
+          type: array
+          description: Latest 50 entries whose `targetId` is the user.
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/AuditEntry'
+    AuditMetadata:
+      type: object
+      additionalProperties: false
+      properties:
+        consentVersion:
+          type: string
+        reason:
+          type: string
+        label:
+          type: string
+        filter:
+          type: string
+          maxLength: 500
+          description: JSON of the export query.
+    AuditEntry:
+      type: object
+      required: [at, actorType, actorId, action, result]
+      properties:
+        at:
+          $ref: '#/components/schemas/Timestamp'
+        actorType:
+          $ref: '#/components/schemas/AuditActorType'
+        actorId:
+          type: string
+        action:
+          $ref: '#/components/schemas/AuditAction'
+        targetType:
+          type: string
+        targetId:
+          type: string
+        result:
+          $ref: '#/components/schemas/AuditResult'
+        ip:
+          type: string
+        userAgent:
+          type: string
+        metadata:
+          $ref: '#/components/schemas/AuditMetadata'
+    AuditRecord:
+      allOf:
+        - $ref: '#/components/schemas/AuditEntry'
+        - type: object
+          required: [day, eventId, ttl]
+          properties:
+            day:
+              $ref: '#/components/schemas/IsoDate'
+              description: America/Sao_Paulo day of `at`.
+            eventId:
+              type: string
+              format: uuid
+            ttl:
+              type: number
+              description: DynamoDB expiry, epoch seconds (365 days after `at`).
+    AuditPage:
+      type: object
+      required: [items, truncated]
+      properties:
+        items:
+          type: array
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/AuditRecord'
+        truncated:
+          type: boolean
