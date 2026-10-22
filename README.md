@@ -43,6 +43,18 @@ npm run build
 npm run web:dev
 ```
 
+### Docker
+
+```bash
+docker compose up
+```
+
+- Web at http://localhost:5173, API at http://localhost:3000. moto is internal, so `npm run moto:up` and integration tests keep their own.
+- `scripts/local-api.ts` runs the real Lambda handlers on moto and creates tables, KMS key and schedule group on start.
+- Admin login is bypassed locally. Tecnofit is the real API.
+- The check-in worker never fires: moto Scheduler does not invoke targets.
+- moto keeps data in memory. Restarting it wipes the data; `api` restarts with it and recreates the resources.
+
 ## Operations scripts
 
 Use the shell's AWS credentials. `CHECKIN_ENV` selects the environment (default `dev`).
