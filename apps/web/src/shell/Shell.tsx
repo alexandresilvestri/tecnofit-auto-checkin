@@ -3,13 +3,23 @@ import type { ReactNode } from "react";
 import { Tabs, type Tab } from "../ui/Tabs";
 import { ThemeToggle } from "../ui/ThemeToggle";
 
-const Brand = () => <span className="font-display text-base font-medium text-fg-emphasis">Check-in</span>;
+function Brand({ title = "Auto check-in by GasparzZ :)", subtitle }: { title?: string; subtitle?: string }) {
+  return (
+    <a href="/app" className="flex items-center gap-3">
+      <img src="/favicon.png" alt="" className="size-8" />
+      <span className="flex flex-col">
+        <span className="font-display text-base/5 font-medium text-fg-emphasis">{title}</span>
+        {subtitle && <span className="hidden text-xs/4 text-fg-muted xl:block">{subtitle}</span>}
+      </span>
+    </a>
+  );
+}
 
-function Header({ tabs, right }: { tabs: Tab[]; right?: ReactNode }) {
+function Header({ tabs, right, brand = <Brand /> }: { tabs: Tab[]; right?: ReactNode; brand?: ReactNode }) {
   return (
     <header className="sticky top-0 z-10 border-b border-line bg-canvas/60 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3 sm:h-[58px] sm:flex-nowrap sm:py-0">
-        <Brand />
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3 sm:flex-nowrap">
+        {brand}
         <span className="ml-auto flex items-center gap-1 sm:order-last">
           <ThemeToggle />
           {right}
@@ -36,10 +46,14 @@ const ADMIN: Tab[] = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
-    <>
-      <Header tabs={APP} />
-      <main className="mx-auto max-w-text px-6 py-6">{children}</main>
-    </>
+    <div className="flex min-h-dvh flex-col">
+      <Header
+        tabs={APP}
+        brand={<Brand title="Agende seu check-in" subtitle="Selecione data e hora, confirme o agendamento e pronto: seu check-in está garantido." />}
+      />
+      <main className="mx-auto w-full max-w-text flex-1 px-6 py-6">{children}</main>
+      <footer className="mx-auto w-full max-w-text px-6 py-8 text-xs text-fg-muted">Desenvolvido por Alexandre Silvestri</footer>
+    </div>
   );
 }
 
