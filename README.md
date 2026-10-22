@@ -19,11 +19,11 @@ O usuário conecta a conta Tecnofit, agenda uma aula (única ou semanal) e o sis
 | Ambiente | Workspace HCP | URL |
 | --- | --- | --- |
 | dev | `checkin-dev` | https://d3d4q56x093hg3.cloudfront.net |
-| prod | `checkin-prod` | output `web_url` do workspace `checkin-prod` |
+| prod | `checkin-prod` | https://dquf6r20z50xs.cloudfront.net |
 
 Org `ATS_org`, projeto `tecnofit-auto-checkin`, região `us-east-1`. Bootstrap (roles OIDC): workspace `checkin-bootstrap`.
 
-Fluxo: PR (testes + plan) → merge em `main` faz deploy no dev → `promote.yml` leva um `sha` para prod com aprovação. Detalhes em [docs/runbook.md](docs/runbook.md).
+Fluxo: PR (testes + plan) → merge em `main` faz deploy no dev → `promote.yml`, disparado à mão a partir de `main`, leva um `sha` para prod. Detalhes em [docs/runbook.md](docs/runbook.md).
 
 ## Desenvolvimento local
 

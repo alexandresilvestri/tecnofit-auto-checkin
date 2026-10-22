@@ -11,7 +11,7 @@ gh run list --workflow deploy.yml --limit 5
 gh run watch
 ```
 
-**Prod (manual).** `promote.yml` só roda a partir de `main`, usa um `sha` que já passou pelo deploy (os zips precisam existir no bucket) e exige aprovação no Environment `prod` do GitHub.
+**Prod (manual).** `promote.yml` só roda a partir de `main` e usa um `sha` que já passou pelo deploy (os zips precisam existir no bucket). Não há aprovação: o Environment `prod` só restringe a branch a `main`, porque "Required reviewers" não está disponível em repositório privado no plano gratuito do GitHub. Disparar o workflow é a aprovação.
 
 ```bash
 git fetch origin main
@@ -20,7 +20,7 @@ gh run list --workflow promote.yml --limit 1
 gh run watch
 ```
 
-Aprove o run no GitHub (Environment `prod`). URL de prod:
+URL de prod: https://dquf6r20z50xs.cloudfront.net. Para conferir:
 
 - HCP: workspace `checkin-prod` → Outputs → `web_url`; ou
 - local, após `terraform login`:
@@ -54,7 +54,7 @@ Uma vez, antes do primeiro promote.
    ```
    Atenção: passar outro `hcp_project` (o padrão é "Default Project") quebra a confiança do dev. O plano esperado só tem adições (role, policies e attachment de prod) e mudanças in-place (trust/policy do `github-deploy`, outputs existentes); nenhum destroy/replace.
 2. No HCP Terraform, criar o workspace `checkin-prod` na org `ATS_org`, projeto `tecnofit-auto-checkin`: workflow API-driven, Terraform 1.15.9, working directory `envs/prod` (não `infra/envs/prod`: o upload envia a pasta `infra`). Variáveis de ambiente: `TFC_AWS_PROVIDER_AUTH=true` e `TFC_AWS_RUN_ROLE_ARN=<output hcp_prod_role_arn>`.
-3. No GitHub: Settings → Environments → `prod`: required reviewer (o dono) e Deployment branches = somente `main` (o subject OIDC `environment:prod` não carrega branch). Criar antes do primeiro promote; senão o GitHub cria o Environment sem proteção.
+3. No GitHub: Settings → Environments → `prod` → Deployment branches and tags = "Selected branches and tags" com a regra de branch `main` (o subject OIDC `environment:prod` não carrega branch). Required reviewers só existe em planos pagos para repositório privado; se o plano permitir, adicione o dono e deixe "Prevent self-review" desmarcado. Criar antes do primeiro promote; senão o GitHub cria o Environment sem proteção.
 4. Fazer o primeiro promote, confirmar o e-mail da assinatura SNS e criar o admin de prod (os 2 comandos Cognito de "Reset do admin", com o `admin_user_pool_id` de prod).
 
 ## Migração dev → prod
@@ -134,7 +134,7 @@ terraform init
 terraform apply -replace=module.backend.random_password.origin -var artifact_version=<sha atual>
 ```
 
-Atenção: um apply local em prod ignora a aprovação do Environment `prod` do GitHub; use só com intenção explícita.
+Atenção: um apply local em prod ignora a restrição de branch do Environment `prod` do GitHub; use só com intenção explícita.
 
 Esperado: janela curta de respostas 403 em `/api/*` até o CloudFront propagar a nova configuração (alguns minutos). Verificar:
 
