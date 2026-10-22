@@ -1,13 +1,19 @@
 import { createRoot } from "react-dom/client";
-import { Home } from "./pages/Home";
+import { Account } from "./pages/Account";
+import { History } from "./pages/History";
 import { Invite } from "./pages/Invite";
 import { Login } from "./pages/Login";
+import { NewSchedule } from "./pages/NewSchedule";
+import { Schedules } from "./pages/Schedules";
 import "./styles.css";
 
 const pages: Record<string, () => React.JSX.Element> = {
-  "/": Home,
+  "/": Schedules,
   "/convite": Invite,
-  "/app": Home,
+  "/app": Schedules,
+  "/app/novo": NewSchedule,
+  "/app/historico": History,
+  "/app/conta": Account,
 };
 
 const Page = pages[location.pathname] ?? Login;
