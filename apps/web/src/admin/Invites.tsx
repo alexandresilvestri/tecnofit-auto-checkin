@@ -28,6 +28,7 @@ const clock = (ms: number) => {
 function Link({ token, expiresAt }: { token: string; expiresAt: string }) {
   const [now, setNow] = useState(Date.now());
   const [copied, setCopied] = useState(false);
+  const [failed, setFailed] = useState(false);
   const url = `${location.origin}/convite#${token}`;
   const left = new Date(expiresAt).getTime() - now;
 
@@ -37,14 +38,19 @@ function Link({ token, expiresAt }: { token: string; expiresAt: string }) {
   }, []);
 
   async function copy() {
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+    } catch {
+      setFailed(true);
+    }
   }
 
   return (
     <div className="banner">
       <p className="mono">{url}</p>
       <p>{left > 0 ? `Expira em ${clock(left)}` : "Expirado"}</p>
+      {failed && <p role="alert" className="error">Não foi possível copiar. Copie o link manualmente.</p>}
       <button type="button" onClick={copy}>{copied ? "Copiado" : "Copiar link"}</button>
     </div>
   );

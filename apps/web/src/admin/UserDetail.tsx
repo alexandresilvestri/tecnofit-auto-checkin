@@ -34,7 +34,9 @@ function Destructive({
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [reason, setReason] = useState("");
-  const ready = typed === name && reason.length >= 1 && reason.length <= 200;
+  const [busy, setBusy] = useState(false);
+  const trimmed = reason.trim();
+  const ready = !busy && typed === name && trimmed.length >= 1 && trimmed.length <= 200;
 
   if (!open) {
     return (
@@ -48,7 +50,8 @@ function Destructive({
       className="danger"
       onSubmit={(e) => {
         e.preventDefault();
-        void onConfirm(reason);
+        setBusy(true);
+        onConfirm(trimmed).finally(() => setBusy(false));
       }}
     >
       <label htmlFor={`name-${label}`}>Digite o nome do usuário: {name}</label>

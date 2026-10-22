@@ -21,6 +21,7 @@ const day = (offset: number) => {
 
 export function Audit() {
   const [filters, setFilters] = useState({ from: day(-6), to: day(0), actor: "", action: "", target: "" });
+  const [draft, setDraft] = useState({ actor: "", action: "", target: "" });
   const [data, setData] = useState<{ items: Item[]; truncated: boolean }>();
   const [error, setError] = useState("");
 
@@ -28,15 +29,22 @@ export function Audit() {
     new URLSearchParams(Object.entries(filters).filter(([, v]) => v)).toString();
 
   useEffect(() => {
+    let cancelled = false;
     setData(undefined);
     setError("");
     get<{ items: Item[]; truncated: boolean }>(`/api/admin/audit?${query()}`)
-      .then(setData)
-      .catch((e) => setError(errorMessage(e)));
+      .then((d) => !cancelled && setData(d))
+      .catch((e) => !cancelled && setError(errorMessage(e)));
+    return () => {
+      cancelled = true;
+    };
   }, [filters]);
 
-  const set = (key: keyof typeof filters) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setFilters({ ...filters, [key]: e.target.value });
+  const setDate = (key: "from" | "to") => (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.value) setFilters({ ...filters, [key]: e.target.value });
+  };
+  const setText = (key: keyof typeof draft) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setDraft({ ...draft, [key]: e.target.value });
 
   async function exportCsv() {
     setError("");
@@ -50,19 +58,26 @@ export function Audit() {
   return (
     <section>
       <h1>Auditoria</h1>
-      <div className="filters">
+      <form
+        className="filters"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setFilters({ ...filters, ...draft });
+        }}
+      >
         <label htmlFor="audit-from">De</label>
-        <input id="audit-from" type="date" value={filters.from} onChange={set("from")} />
+        <input id="audit-from" type="date" value={filters.from} onChange={setDate("from")} />
         <label htmlFor="audit-to">Até</label>
-        <input id="audit-to" type="date" value={filters.to} onChange={set("to")} />
+        <input id="audit-to" type="date" value={filters.to} onChange={setDate("to")} />
         <label htmlFor="audit-actor">Ator</label>
-        <input id="audit-actor" type="text" maxLength={200} value={filters.actor} onChange={set("actor")} />
+        <input id="audit-actor" type="text" maxLength={200} value={draft.actor} onChange={setText("actor")} />
         <label htmlFor="audit-action">Ação</label>
-        <input id="audit-action" type="text" maxLength={200} value={filters.action} onChange={set("action")} />
+        <input id="audit-action" type="text" maxLength={200} value={draft.action} onChange={setText("action")} />
         <label htmlFor="audit-target">Alvo</label>
-        <input id="audit-target" type="text" maxLength={200} value={filters.target} onChange={set("target")} />
+        <input id="audit-target" type="text" maxLength={200} value={draft.target} onChange={setText("target")} />
+        <button type="submit">Filtrar</button>
         <button type="button" onClick={exportCsv}>Exportar CSV</button>
-      </div>
+      </form>
       {error && <p role="alert" className="error">{error}</p>}
       {!data && !error && <p>Carregando...</p>}
       {data?.truncated && (
