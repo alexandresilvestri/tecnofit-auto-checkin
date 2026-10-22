@@ -4,7 +4,7 @@ Convenções: `<env>` é `dev` ou `prod`; região `us-east-1`; recursos com pref
 
 ## Deploy, promoção e rollback
 
-**Dev (automático).** Merge em `main` dispara `deploy.yml`: build dos zips em `s3://$ARTIFACTS_BUCKET/<sha>/`, run no workspace `checkin-dev`, sync do SPA, invalidação do CloudFront e smoke tests (`/api/health`, headers de segurança, acesso direto ao API Gateway = 403).
+**Dev (automático).** Merge em `main` dispara `deploy.yml`: build dos zips em `s3://$ARTIFACTS_BUCKET/<sha>/`, run no workspace `checkin-dev`, sync do SPA, invalidação do CloudFront e smoke tests (`/api/health`, headers de segurança, acesso direto ao API Gateway negado).
 
 ```bash
 gh run list --workflow deploy.yml --limit 5
@@ -23,19 +23,50 @@ gh run watch
 Aprove o run no GitHub (Environment `prod`). URL de prod:
 
 - HCP: workspace `checkin-prod` → Outputs → `web_url`; ou
-- `cd infra/envs/prod && terraform output web_url` (após `terraform login`).
+- local, após `terraform login`:
+  ```bash
+  export TF_CLOUD_ORGANIZATION=ATS_org
+  cd infra/envs/prod && terraform init && terraform output web_url
+  ```
 
-**Rollback.** É um novo promote com um `sha` anterior. Os artefatos ficam 90 dias; passado esse prazo o job falha em "Check artifacts".
+**Rollback.** É um novo promote com um `sha` anterior. O alvo precisa ser um sha de merge em `main` igual ou posterior ao merge da Fase 5 (antes dele não existe `infra/envs/prod` e o job falha em "Check environment exists at sha") e ter no máximo 90 dias (passado o prazo o job falha em "Check artifacts").
 
 ```bash
 gh workflow run promote.yml --ref main -f sha=<sha-anterior>
 ```
+
+Primeiro teste de rollback: fazer mais um commit em `main` → promover esse sha → promover o sha do merge da Fase 5 (rollback) → promover de novo o sha mais novo.
 
 Notas:
 
 - Rollback só volta código e infra versionados; dados não voltam (ver PITR).
 - `release.yml` tem os jobs `dev` e `prod` idênticos, mantidos à mão: qualquer mudança vai nos dois.
 - `pr.yml` roda lint, typecheck, testes, build, e2e, `terraform validate`, Semgrep e plan especulativo do dev.
+
+## Setup inicial de prod
+
+Uma vez, antes do primeiro promote.
+
+1. Reaplicar o bootstrap a partir da raiz do repo:
+   ```bash
+   export TF_CLOUD_ORGANIZATION=ATS_org
+   cd infra/bootstrap && terraform init && terraform apply -var hcp_org=ATS_org -var hcp_project=tecnofit-auto-checkin
+   ```
+   Atenção: passar outro `hcp_project` (o padrão é "Default Project") quebra a confiança do dev. O plano esperado só tem adições (role, policies e attachment de prod) e mudanças in-place (trust/policy do `github-deploy`, outputs existentes); nenhum destroy/replace.
+2. No HCP Terraform, criar o workspace `checkin-prod` na org `ATS_org`, projeto `tecnofit-auto-checkin`: workflow API-driven, Terraform 1.15.9, working directory `envs/prod` (não `infra/envs/prod`: o upload envia a pasta `infra`). Variáveis de ambiente: `TFC_AWS_PROVIDER_AUTH=true` e `TFC_AWS_RUN_ROLE_ARN=<output hcp_prod_role_arn>`.
+3. No GitHub: Settings → Environments → `prod`: required reviewer (o dono) e Deployment branches = somente `main` (o subject OIDC `environment:prod` não carrega branch). Criar antes do primeiro promote; senão o GitHub cria o Environment sem proteção.
+4. Fazer o primeiro promote, confirmar o e-mail da assinatura SNS e criar o admin de prod (os 2 comandos Cognito de "Reset do admin", com o `admin_user_pool_id` de prod).
+
+## Migração dev → prod
+
+One-shot. Dry-run primeiro, depois aplicar:
+
+```bash
+npm run migrate
+npm run migrate -- --apply
+```
+
+Repetir `--apply` até não haver linhas `FAILED`. Nunca rodar de novo depois: o dev vira homologação e seus usuários de teste seriam movidos para prod.
 
 ## Tecnofit mudou a API
 
@@ -98,6 +129,7 @@ Local (alternativa, após `terraform login`):
 
 ```bash
 cd infra/envs/<env>
+export TF_CLOUD_ORGANIZATION=ATS_org
 terraform init
 terraform apply -replace=module.backend.random_password.origin -var artifact_version=<sha atual>
 ```
@@ -112,6 +144,10 @@ curl -s "$WEB_URL/api/health"
 
 Se persistir 403 por mais de ~15 min, confira se o apply terminou nas Lambdas e na distribuição.
 
+## Acesso direto ao API Gateway
+
+Chamadas diretas ao `execute-api` são negadas: rotas com authorizer (user/admin) respondem 401 do API Gateway e as demais 403.
+
 ## Alarmes
 
 Todos notificam o tópico SNS `checkin-<env>-alarms` (e-mail). Janela de 5 min.
@@ -122,7 +158,7 @@ Todos notificam o tópico SNS `checkin-<env>-alarms` (e-mail). Janela de 5 min.
 | `checkin-<env>-worker-errors` | erro (exceção) no worker | `aws logs tail /aws/lambda/checkin-<env>-checkin-worker --since 1h`; corrigir e promover; rollback se foi o último deploy. |
 | `checkin-<env>-api-5xx` | 5xx no API Gateway | Logs das Lambdas `/aws/lambda/checkin-<env>-api-public`, `-api-user`, `-api-admin`; rollback se coincide com deploy. |
 | `checkin-<env>-api-public-errors`, `-api-user-errors`, `-api-admin-errors`, `-authorizer-user-errors` | erro na Lambda correspondente | `aws logs tail /aws/lambda/checkin-<env>-<função> --since 1h`. |
-| `checkin-<env>-login-failed` | mais de 20 logins com 401 em 5 min | Possível força bruta ou mudança no login Tecnofit; checar logs de `api-public`. |
+| `checkin-<env>-login-failed` | mais de 20 logins com falha (401), cada falha contada uma vez, em 5 min | Possível força bruta ou mudança no login Tecnofit; checar logs de `api-public`. |
 
 Testar o envio:
 

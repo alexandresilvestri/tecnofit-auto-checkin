@@ -35,6 +35,7 @@ export const handler = async (event: z.infer<typeof eventSchema>) => {
     return status;
   } catch (err) {
     logger.error("checkin failed", { ...input, error: err instanceof Error ? err.name : "unknown" });
-    throw err;
+    const sanitized = new Error(err instanceof Error ? err.name : "unknown");
+    throw sanitized;
   }
 };

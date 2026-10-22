@@ -332,7 +332,7 @@ resource "aws_lambda_function" "api" {
   s3_bucket     = var.artifacts_bucket
   s3_key        = "${var.artifact_version}/${each.key}.zip"
 
-  # Only table names and the KMS key ARN live here; no secrets.
+  # Holds table names, the KMS key ARN and the origin secret (CloudFront-to-API shared header); acceptable: encrypted at rest by the Lambda default key and never logged.
   # nosemgrep: terraform.aws.security.aws-lambda-environment-unencrypted.aws-lambda-environment-unencrypted
   environment {
     variables = each.value.env
@@ -443,7 +443,7 @@ resource "aws_cloudwatch_log_metric_filter" "checkin_failed" {
 resource "aws_cloudwatch_log_metric_filter" "login_failed" {
   name           = "checkin-${var.env}-login-failed"
   log_group_name = aws_cloudwatch_log_group.api["api-public"].name
-  pattern        = "{ $.route = \"/api/auth/login\" && $.status = 401 }"
+  pattern        = "{ $.message = \"request\" && $.route = \"/api/auth/login\" && $.status = 401 }"
 
   metric_transformation {
     name          = "LoginFailed"

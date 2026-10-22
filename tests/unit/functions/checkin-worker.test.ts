@@ -76,7 +76,7 @@ it.each([
   const { handler: loud } = await import("../../../apps/functions/checkin-worker/index");
   await expect(
     loud({ userId: "u1", scheduleId: "s1", scheduledTime: "2026-07-01T05:16:00-03:00" }),
-  ).rejects.toThrow();
+  ).rejects.toSatisfy((e: Error) => !e.message.includes(jwt) && !e.message.includes("Bearer") && !e.message.includes(tokenEnc));
   const text = out.join("\n");
   expect(text).toContain("checkin failed");
   expect(text).not.toContain(jwt);

@@ -61,6 +61,8 @@ jobs:
               exit 1
             fi
           done
+      - name: Check environment exists at sha
+        run: test -d "infra/envs/$DEPLOY_ENV" || { echo "::error::$SHA predates infra/envs/$DEPLOY_ENV"; exit 1; }
       - run: echo "artifact_version = \"$SHA\"" > "infra/envs/$DEPLOY_ENV/artifact.auto.tfvars"
       - id: upload
         uses: hashicorp/tfc-workflows-github/actions/upload-configuration@8e08d1ba957673f5fbf971a22b3219639dc45661 # v1.3.2
@@ -157,6 +159,8 @@ jobs:
               exit 1
             fi
           done
+      - name: Check environment exists at sha
+        run: test -d "infra/envs/$DEPLOY_ENV" || { echo "::error::$SHA predates infra/envs/$DEPLOY_ENV"; exit 1; }
       - run: echo "artifact_version = \"$SHA\"" > "infra/envs/$DEPLOY_ENV/artifact.auto.tfvars"
       - id: upload
         uses: hashicorp/tfc-workflows-github/actions/upload-configuration@8e08d1ba957673f5fbf971a22b3219639dc45661 # v1.3.2
