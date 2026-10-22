@@ -1,6 +1,6 @@
 import { writeAudit } from "../audit/audit.js";
 import { decryptToken, encryptToken } from "../crypto/token.js";
-import { enableSchedule, listSchedules, recreateSchedule, type ScheduleDeps } from "./schedules.js";
+import { listSchedules, recreateSchedule, type ScheduleDeps } from "./schedules.js";
 import { deleteUser } from "./users.js";
 
 export type MigrateDeps = ScheduleDeps & { keyId: string };
@@ -39,7 +39,7 @@ export async function migrateUser(from: MigrateDeps, to: MigrateDeps, userId: st
     await to.entities.profile.put(profile).go();
   }
   if ((await from.entities.profile.get({ userId }).go()).data) {
-    for (const row of await listSchedules(to.entities, userId)) if (row.active) await enableSchedule(to, row);
+    for (const row of await listSchedules(to.entities, userId)) if (row.active) await recreateSchedule(to, row, "ENABLED");
   }
   await deleteUser(from, userId);
 }

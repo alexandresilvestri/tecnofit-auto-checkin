@@ -1,9 +1,22 @@
+import { parseArgs } from "node:util";
 import { migrateUser } from "@checkin/core/domain/migrate";
+import { listSchedules } from "@checkin/core/domain/schedules";
 import { loadEnv } from "./env.js";
 
-const apply = process.argv.slice(2).includes("--apply");
-if (process.argv.slice(2).some((a) => a !== "--apply")) {
-  console.error("Usage:\n  migrate [--apply]");
+const USAGE = `Usage:
+  migrate [--apply]`;
+
+let apply = false;
+try {
+  const { values, positionals } = parseArgs({
+    args: process.argv.slice(2),
+    options: { apply: { type: "boolean" } },
+    allowPositionals: true,
+  });
+  if (positionals.length) throw new Error("usage");
+  apply = values.apply ?? false;
+} catch {
+  console.error(USAGE);
   process.exit(1);
 }
 
@@ -16,7 +29,7 @@ const failures: string[] = [];
 let migrated = 0;
 
 for (const { userId, name } of users) {
-  const schedules = (await dev.entities.schedule.query.byUser({ userId }).go({ pages: "all" })).data.length;
+  const schedules = (await listSchedules(dev.entities, userId)).length;
   const executions = (await dev.entities.execution.query.byUser({ userId }).go({ pages: "all" })).data.length;
   schedulesTotal += schedules;
   executionsTotal += executions;
