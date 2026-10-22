@@ -107,6 +107,25 @@ function scheduleRequest(deps: ScheduleDeps, userId: string, scheduleId: string,
   };
 }
 
+export async function recreateSchedule(
+  deps: ScheduleDeps,
+  row: EntityItem<Entities["schedule"]>,
+): Promise<boolean> {
+  const spec = specOf(row);
+  if (spec.kind === "once" && nextClass(spec, deps.now()) === null) return false;
+  try {
+    await deps.scheduler.send(
+      new CreateScheduleCommand({
+        ...scheduleRequest(deps, row.userId, row.scheduleId, spec),
+        State: row.active ? "ENABLED" : "DISABLED",
+      }),
+    );
+  } catch (err) {
+    if ((err as { name?: string }).name !== "ConflictException") throw err;
+  }
+  return true;
+}
+
 export async function addSchedule(deps: ScheduleDeps, input: AddScheduleInput): Promise<string> {
   const { entities, scheduler } = deps;
   const { userId, className, allowWaitingList, refDate, ...spec } = input;

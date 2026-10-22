@@ -23,6 +23,7 @@ export const AUDIT_ACTIONS = [
   "user.reactivated",
   "user.sessions_revoked",
   "user.deleted",
+  "user.migrated",
   "audit.exported",
 ] as const;
 
