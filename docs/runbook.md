@@ -39,7 +39,7 @@ Primeiro teste de rollback: fazer mais um commit em `main` → promover esse sha
 
 Notas:
 
-- Rollback só volta código e infra versionados; dados não voltam (ver PITR).
+- Rollback só volta código e infra versionados; dados não voltam (ver PITR). Exceção: a política da chave KMS não volta para a padrão ao promover um sha anterior a ela (ver "Acesso à chave KMS").
 - `release.yml` tem os jobs `dev` e `prod` idênticos, mantidos à mão: qualquer mudança vai nos dois.
 - `pr.yml` roda lint, typecheck, testes, build, e2e, `terraform validate`, Semgrep e plan especulativo do dev.
 
@@ -157,7 +157,14 @@ A chave `alias/checkin-<env>-token` (política em `infra/modules/data/main.tf`) 
 - `checkin-<env>-api-user` (decifra na lista de aulas);
 - os `operator_arns` do ambiente (hoje `user/alexandresilvestri`, usado por `connect`, `schedule classes` e `migrate`).
 
-Só `checkin-hcp-terraform-<env>`, os operadores e o root administram a chave (política, rotação, exclusão, grants, tags). Além disso, a role `checkin-hcp-terraform-dev` tem a policy `checkin-dev-deny-prod` (bootstrap), que nega qualquer ação em recursos com `checkin-prod` no ARN ou com a tag `Env = prod`.
+Só `checkin-hcp-terraform-<env>`, os operadores e o root alteram a política, desativam a chave ou a rotação, agendam a exclusão, criam grants e mexem nas tags. Além disso, a role `checkin-hcp-terraform-dev` tem a policy `checkin-dev-deny-prod` (bootstrap), que nega qualquer ação em recursos com `checkin-prod` no ARN ou com a tag `Env = prod`, e escritas no bucket de artefatos. É defesa em profundidade: a role de dev ainda poderia contorná-la criando roles `checkin-dev-*`, e o `TF_API_TOKEN` (dono de todos os workspaces no plano gratuito do HCP) já roda o workspace de prod. Risco aceito.
+
+Promover um sha anterior a esta política não a remove (o `policy` do `aws_kms_key` é computado: sem ele no código, o Terraform mantém a atual). Para voltar à política padrão, o operador roda:
+
+```bash
+KEY=$(aws kms describe-key --region us-east-1 --key-id alias/checkin-<env>-token --query KeyMetadata.Arn --output text)
+aws kms put-key-policy --region us-east-1 --key-id "$KEY" --policy-name default --policy '{"Version":"2012-10-17","Statement":[{"Sid":"Enable IAM User Permissions","Effect":"Allow","Principal":{"AWS":"arn:aws:iam::940482447658:root"},"Action":"kms:*","Resource":"*"}]}'
+```
 
 Para incluir um operador: adicione o ARN em `operator_arns` no `module "data"` de `infra/envs/<env>/main.tf`, abra um PR e promova.
 
