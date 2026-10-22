@@ -59,7 +59,7 @@ resource "aws_cloudfront_origin_request_policy" "api" {
     header_behavior = "whitelist"
 
     headers {
-      items = ["x-requested-with", "content-type", "user-agent", "CloudFront-Viewer-Address"]
+      items = ["x-requested-with", "content-type", "user-agent", "CloudFront-Viewer-Address", "authorization"]
     }
   }
 
@@ -77,7 +77,7 @@ resource "aws_cloudfront_response_headers_policy" "web" {
 
   security_headers_config {
     content_security_policy {
-      content_security_policy = "default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+      content_security_policy = "default-src 'self'; connect-src 'self' https://${var.auth_domain_prefix}.auth.us-east-1.amazoncognito.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
       override                = true
     }
 

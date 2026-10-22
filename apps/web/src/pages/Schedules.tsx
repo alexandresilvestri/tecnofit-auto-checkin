@@ -30,6 +30,8 @@ export const shortDate = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)
 
 export const fullDate = (iso: string) => `${shortDate(iso)}/${iso.slice(0, 4)}`;
 
+export const stamp = (iso: string) => new Date(iso).toLocaleString("pt-BR");
+
 const nextLabel = (value: string) => `${shortDate(value)} ${value.slice(11, 16)}`;
 
 export function Schedules() {
