@@ -9,3 +9,7 @@ output "github_deploy_role_arn" {
 output "hcp_dev_role_arn" {
   value = aws_iam_role.hcp_dev.arn
 }
+
+output "hcp_prod_role_arn" {
+  value = aws_iam_role.hcp_prod.arn
+}

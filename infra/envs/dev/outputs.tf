@@ -53,3 +53,7 @@ output "admin_client_id" {
 output "auth_domain" {
   value = module.auth.domain_url
 }
+
+output "api_endpoint" {
+  value = module.backend.api_endpoint
+}
