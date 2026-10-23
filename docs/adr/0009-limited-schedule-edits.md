@@ -1,7 +1,7 @@
 # 0009. Schedule edits limited to pause and waiting list
 
 - Status: Superseded by [0019](0019-remove-waiting-list.md)
-- Date: 2026-10-21
+- Date: 2026-09-03
 
 ## Context
 

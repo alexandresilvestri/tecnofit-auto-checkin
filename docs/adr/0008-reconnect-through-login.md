@@ -1,7 +1,7 @@
 # 0008. Reconnect through login
 
 - Status: Accepted
-- Date: 2026-10-21
+- Date: 2026-09-03
 
 ## Context
 

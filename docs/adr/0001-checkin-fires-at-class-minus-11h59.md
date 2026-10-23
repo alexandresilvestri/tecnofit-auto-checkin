@@ -1,7 +1,7 @@
 # 0001. Check-in fires at class − 11h59, with a fixed rule
 
 - Status: Superseded by [0020](0020-checkin-fires-at-opening-with-30s-retries.md)
-- Date: 2026-10-21
+- Date: 2026-09-03
 
 ## Context
 

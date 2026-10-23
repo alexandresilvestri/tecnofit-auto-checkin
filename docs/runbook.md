@@ -150,7 +150,7 @@ If the 403 lasts more than ~15 min, check that the apply finished on the Lambdas
 
 Key policy, principals and accepted risks: [infrastructure.md](infrastructure.md#kms-key).
 
-Reset to the default policy, for example after promoting a sha before `ab0f4c4`:
+Reset to the default policy, for example after promoting a sha before `7c12141`:
 
 ```bash
 KEY=$(aws kms describe-key --region us-east-1 --key-id alias/checkin-<env>-token --query KeyMetadata.Arn --output text)

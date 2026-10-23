@@ -1,7 +1,7 @@
 # 0011. CloudFront origin secret header
 
 - Status: Accepted
-- Date: 2026-10-22
+- Date: 2026-09-16
 
 ## Context
 

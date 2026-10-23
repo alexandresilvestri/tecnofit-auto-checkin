@@ -1,7 +1,7 @@
 # 0004. Single-table DynamoDB with ElectroDB and a separate audit table
 
 - Status: Accepted
-- Date: 2026-10-20
+- Date: 2026-09-01
 
 ## Context
 

@@ -138,7 +138,7 @@ In CI, only `deploy.yml` writes artifacts. A lifecycle rule deletes every object
 
 A rollback is a promote of an older sha. The sha must meet two conditions:
 
-- It is a `main` merge sha at or after commit `a7966a5`, the first commit with `infra/envs/prod`. Older shas fail at "Check environment exists at sha".
+- It is a `main` merge sha at or after commit `c98cfd4`, the first commit with `infra/envs/prod`. Older shas fail at "Check environment exists at sha".
 - Its artifacts are at most 90 days old. Older shas fail at "Check artifacts".
 
 ## Prod approval model

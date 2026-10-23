@@ -1,7 +1,7 @@
 # 0002. One EventBridge Scheduler schedule per booking, no retries, idempotent claim
 
 - Status: Accepted
-- Date: 2026-10-21
+- Date: 2026-09-03
 
 ## Context
 

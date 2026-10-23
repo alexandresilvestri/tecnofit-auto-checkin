@@ -1,7 +1,7 @@
 # 0020. Check-in fires at the opening and retries every 30 s
 
 - Status: Accepted
-- Date: 2026-10-22
+- Date: 2026-10-15
 
 ## Context
 

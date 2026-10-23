@@ -1,7 +1,7 @@
 # 0007. Invite-only onboarding
 
 - Status: Accepted
-- Date: 2026-10-20
+- Date: 2026-09-01
 
 ## Context
 

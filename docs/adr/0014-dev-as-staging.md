@@ -1,7 +1,7 @@
 # 0014. Dev becomes staging after a one-shot migration
 
 - Status: Accepted
-- Date: 2026-10-22
+- Date: 2026-09-16
 
 ## Context
 

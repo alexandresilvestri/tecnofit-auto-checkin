@@ -1,7 +1,7 @@
 # 0015. Local environment on moto with the real Lambda handlers
 
 - Status: Accepted
-- Date: 2026-10-22
+- Date: 2026-09-28
 
 ## Context
 

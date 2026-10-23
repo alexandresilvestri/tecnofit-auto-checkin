@@ -1,7 +1,7 @@
 # 0013. Immutable artifacts per sha, dev on merge, promote and rollback by sha
 
 - Status: Accepted
-- Date: 2026-10-22
+- Date: 2026-09-16
 
 ## Context
 
@@ -18,11 +18,11 @@ Prod must run exactly what was tested in dev, and rolling back must be quick. Th
 
 ## Consequences
 
-- A rollback target must be at or after commit `a7966a5` (the first with `infra/envs/prod`) and at most 90 days old (artifact lifecycle).
+- A rollback target must be at or after commit `c98cfd4` (the first with `infra/envs/prod`) and at most 90 days old (artifact lifecycle).
 - Rollback reverts code and versioned infra only; data does not revert.
 - `release.yml` has two identical jobs, `dev` and `prod`, because `environment` cannot be conditionally absent. They must be edited together.
 - Dispatching several promotes at once cancels the queued ones; run them one at a time.
 - Accepted risk: no second person approves prod deploys.
-- The rollback path was tested on 2026-10-22: promote a newer sha, roll back to `a7966a5`, promote the newer sha again.
+- The rollback path was tested on 2026-09-19: promote a newer sha, roll back to `c98cfd4`, promote the newer sha again.
 
 See [ci-cd.md](../ci-cd.md).

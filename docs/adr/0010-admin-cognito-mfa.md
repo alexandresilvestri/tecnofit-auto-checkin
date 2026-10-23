@@ -1,7 +1,7 @@
 # 0010. Admin through Cognito with TOTP MFA, wired in the `auth` module
 
 - Status: Accepted
-- Date: 2026-10-22
+- Date: 2026-09-14
 
 ## Context
 

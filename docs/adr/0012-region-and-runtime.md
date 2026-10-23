@@ -1,7 +1,7 @@
 # 0012. Region us-east-1 and Node.js 24 runtime
 
 - Status: Accepted
-- Date: 2026-10-21
+- Date: 2026-09-04
 
 ## Context
 
@@ -9,7 +9,7 @@ The original plan used `sa-east-1` for lower latency to Tecnofit during conteste
 
 ## Decision
 
-- All resources run in `us-east-1`, for lower cost. The move happened on 2026-10-21.
+- All resources run in `us-east-1`, for lower cost. The move happened on 2026-09-04.
 - Lambdas use `nodejs24.x`. The Node.js 22 runtime is deprecated on 2027-04-30.
 
 ## Consequences

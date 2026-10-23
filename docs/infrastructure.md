@@ -200,7 +200,7 @@ The Lambda policies add a second guard. `kms:Encrypt` and `kms:Decrypt` require 
 
 The dev HCP role has extra prod denies, with accepted risks; see [Dev deny-prod policy](#dev-deny-prod-policy).
 
-`aws_kms_key.policy` is a computed attribute. Promoting a sha older than `ab0f4c4`, which added this policy, leaves the current policy in place. [runbook.md](runbook.md#kms-key-access) covers how to reset it.
+`aws_kms_key.policy` is a computed attribute. Promoting a sha older than `7c12141`, which added this policy, leaves the current policy in place. [runbook.md](runbook.md#kms-key-access) covers how to reset it.
 
 ## DynamoDB
 

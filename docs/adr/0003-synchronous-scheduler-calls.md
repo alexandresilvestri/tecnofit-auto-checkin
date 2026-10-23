@@ -1,7 +1,7 @@
 # 0003. Synchronous Scheduler calls from the API
 
 - Status: Accepted
-- Date: 2026-10-21
+- Date: 2026-09-13
 
 ## Context
 

@@ -1,7 +1,7 @@
 # 0006. Opaque session cookie with a Lambda authorizer
 
 - Status: Accepted
-- Date: 2026-10-20
+- Date: 2026-09-01
 
 ## Context
 

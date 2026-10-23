@@ -1,7 +1,7 @@
 # 0016. Frontend without a router or UI library, under a strict CSP
 
 - Status: Accepted
-- Date: 2026-10-22
+- Date: 2026-09-23
 
 ## Context
 

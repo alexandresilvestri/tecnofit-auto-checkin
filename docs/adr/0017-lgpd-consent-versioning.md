@@ -1,7 +1,7 @@
 # 0017. LGPD consent with a versioned text
 
 - Status: Accepted
-- Date: 2026-10-21
+- Date: 2026-09-08
 
 ## Context
 
