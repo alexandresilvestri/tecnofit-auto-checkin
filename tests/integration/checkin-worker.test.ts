@@ -13,7 +13,7 @@ import { awsConfig, createKey, createTestEntities, resetMoto } from "./setup/aws
 
 const WOD = "https://rest.tecnofit.com.br/v2/161322/crossfit/wod/2026-10-21/programs";
 const DETAIL = `${WOD}/33548/calendar/events/587887`;
-const SCHEDULED = "2026-10-20T22:01:00Z";
+const SCHEDULED = "2026-10-20T22:00:00Z";
 const TOKEN = fakeJwt({ user_id: 28715453, empresa_id: 161322, exp: 1900000000 });
 const FULL = { event: { ...eventDetail.event, attendance: { count: 20, capacity: 20, attendees: [] } } };
 
@@ -123,7 +123,6 @@ function run(input: { userId: string; scheduleId: string; scheduledTime: string 
       sleep: async (ms) => {
         t += ms;
       },
-      random: () => 0.5,
     },
     input,
   );
@@ -157,7 +156,7 @@ it("retries after 3 failures", async () => {
   const input = await seed();
   postReply = (count) => (count <= 3 ? new HttpResponse(null, { status: 500 }) : HttpResponse.json(checkInFixture));
   expect(await run(input)).toBe("success");
-  expect(await exec(input.scheduleId)).toMatchObject({ status: "success", attempts: 4 });
+  expect(await exec(input.scheduleId)).toMatchObject({ status: "success", attempts: 4, latencyMs: 90_000 });
 });
 
 it("fails as full without asking for the waiting list", async () => {
@@ -190,7 +189,7 @@ it("times out when the class list keeps failing", async () => {
   eventsReply = () => new HttpResponse(null, { status: 503 });
   expect(await run(input)).toBe("failed");
   expect(await exec(input.scheduleId)).toMatchObject({ status: "failed", error: "timeout", attempts: 0 });
-  expect(lists).toBeGreaterThan(150);
+  expect(lists).toBe(5);
   expect(posts).toHaveLength(0);
 });
 
@@ -213,14 +212,13 @@ it("finishes the execution when the reconnect write fails", async () => {
   expect(await exec(input.scheduleId)).toMatchObject({ status: "failed", error: "unauthorized" });
 });
 
-it("times out after 90 s of failures", async () => {
+it("times out after 4 retries", async () => {
   const input = await seed();
   postReply = () => HttpResponse.json({ message: "closed" }, { status: 400 });
   expect(await run(input)).toBe("failed");
   const row = await exec(input.scheduleId);
-  expect(row).toMatchObject({ status: "failed", error: "timeout" });
-  expect(row!.attempts).toBeGreaterThan(150);
-  expect(details).toBeLessThanOrEqual(46);
+  expect(row).toMatchObject({ status: "failed", error: "timeout", attempts: 5 });
+  expect(details).toBe(5);
 });
 
 it("does nothing on a duplicate invocation", async () => {
@@ -261,7 +259,7 @@ it("fails on malformed events", async () => {
 });
 
 it("rejects a scheduledTime one hour early", async () => {
-  const input = { ...(await seed()), scheduledTime: "2026-10-20T21:01:00Z" };
+  const input = { ...(await seed()), scheduledTime: "2026-10-20T21:00:00Z" };
   expect(await run(input, Date.parse(input.scheduledTime))).toBe("failed");
   expect(await exec(input.scheduleId)).toMatchObject({ status: "failed", error: "window_mismatch" });
   expect(lists).toBe(0);

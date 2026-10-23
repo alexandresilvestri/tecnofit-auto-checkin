@@ -175,7 +175,7 @@ How artifacts reach AWS is described in [ci-cd.md](ci-cd.md).
 - **Hono handlers.** HTTP Lambdas use Hono with `@hono/aws-lambda`. A middleware checks the origin header, then the CSRF header or the admin group, and logs each request.
 - **Error mapping.** Domain errors are `Error` subclasses with a `name`. Each handler's `mapError` maps them to an HTTP status and a pt-BR message.
 - **Safe logs.** Logs record ids, routes, statuses and error names, never error messages or tokens.
-- **Injected dependencies.** Domain functions take a `deps` object (`entities`, `kms`, `scheduler`, `now`, `sleep`, `random`). Tests swap these freely.
+- **Injected dependencies.** Domain functions take a `deps` object (`entities`, `kms`, `scheduler`, `now`, `sleep`). Tests swap these freely.
 - **Data access.** ElectroDB entities in `packages/core/db/entities.ts`. `isConditionalFailure` detects failed conditions.
 - **Language.** User-facing strings are pt-BR. Code, logs and audit action names are English.
 - **No comments.** TypeScript source has no comments. Terraform comments exist only to justify `nosemgrep` suppressions.

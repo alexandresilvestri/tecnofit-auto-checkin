@@ -85,7 +85,7 @@ test("convite, cadastro e agendamento semanal", async ({ page }) => {
   await page.getByRole("button", { name: "Buscar aulas" }).click();
   await expect(page.getByRole("group", { name: "Aulas em seg" })).toBeVisible();
   await page.getByLabel(/07:00 — CrossFit/).check();
-  await expect(page.getByText(/^Próximo check-in: dom \d{2}\/\d{2} às 19:01$/)).toBeVisible();
+  await expect(page.getByText(/^Próximo check-in: dom \d{2}\/\d{2} às 19:00$/)).toBeVisible();
   const created = page.waitForRequest((r) => r.url().endsWith("/api/schedules") && r.method() === "POST");
   await page.getByRole("button", { name: "Agendar toda semana" }).click();
   expect((await created).postDataJSON()).toMatchObject({ className: "CrossFit", startTime: "07:00", kind: "weekly", weekdays: [1] });
@@ -95,7 +95,7 @@ test("convite, cadastro e agendamento semanal", async ({ page }) => {
   await expect(card.getByRole("heading", { name: "07:00 — CrossFit" })).toBeVisible();
   await expect(card).toContainText("Toda semana");
   await expect(card).toContainText("seg");
-  await expect(card).toContainText("dom 01/11 às 19:01");
+  await expect(card).toContainText("dom 01/11 às 19:00");
   await expect(card).toContainText("Ativo");
 
   await card.getByRole("button", { name: "Pausar" }).click();
@@ -123,7 +123,7 @@ test("agendamento de uma vez com resumo", async ({ page }) => {
   await page.getByRole("button", { name: "Buscar aulas" }).click();
   await page.getByLabel(/07:00 — CrossFit/).check();
   await expect(page.getByText("CrossFit, seg 05/01, 07:00")).toBeVisible();
-  await expect(page.getByText("Check-in: dom 04/01 às 19:01")).toBeVisible();
+  await expect(page.getByText("Check-in: dom 04/01 às 19:00")).toBeVisible();
   const created = page.waitForRequest((r) => r.url().endsWith("/api/schedules") && r.method() === "POST");
   await page.getByRole("button", { name: "Agendar uma vez" }).click();
   expect((await created).postDataJSON()).toEqual({ className: "CrossFit", startTime: "07:00", date: "2099-01-05", kind: "once" });

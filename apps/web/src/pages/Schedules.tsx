@@ -51,7 +51,7 @@ const LIST = new Intl.ListFormat("pt-BR");
 
 export const dayList = (days: number[]) => LIST.format([...days].sort().map((d) => WEEKDAYS[d].toLowerCase()));
 
-export const checkinTime = (slot: string) => Date.parse(`${slot.replace(" ", "T")}:00-03:00`) - 719 * 60_000;
+export const checkinTime = (slot: string) => Date.parse(`${slot.replace(" ", "T")}:00-03:00`) - 720 * 60_000;
 
 export const checkinLabel = (slot: string) => {
   const local = new Date(checkinTime(slot) - 3 * 3_600_000);

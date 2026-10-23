@@ -1,5 +1,5 @@
 export const TZ = "America/Sao_Paulo";
-export const FIRE_BEFORE_CLASS_MIN = 719;
+export const FIRE_BEFORE_CLASS_MIN = 720;
 
 const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const DAY_MIN = 1440;

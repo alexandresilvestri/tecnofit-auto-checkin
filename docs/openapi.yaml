@@ -337,8 +337,8 @@ paths:
       description: |
         Looks up the Tecnofit agenda on `date` for a class with exactly `className` starting at `startTime`.
         For `weekly`, `date` is only the reference day for that lookup.
-        For `once`, the class must start more than 11 h 59 min from now.
-        Creates an EventBridge Scheduler job that fires 11 h 59 min before each class.
+        For `once`, the class must start more than 12 h from now.
+        Creates an EventBridge Scheduler job that fires 12 h before each class.
       security:
         - sessionCookie: []
       parameters:

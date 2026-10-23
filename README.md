@@ -2,7 +2,7 @@
 
 Automatic check-in for classes at a Tecnofit box. Invite-only access.
 
-The user connects their Tecnofit account, schedules a class (one-off or weekly) and the system checks in on its own. Tecnofit opens check-in 12 h before the class; the job runs at `class − 11h59`, timezone `America/Sao_Paulo`.
+The user connects their Tecnofit account, schedules a class (one-off or weekly) and the system checks in on its own. Tecnofit opens check-in 12 h before the class; the job runs at `class − 12h`, timezone `America/Sao_Paulo`.
 
 <img width="1058" height="913" alt="image" src="https://github.com/user-attachments/assets/a0c47960-3fd7-49f7-b08c-7401b8c52a32" />
 

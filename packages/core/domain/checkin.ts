@@ -18,10 +18,12 @@ export type CheckinDeps = {
   kms: KMSClient;
   now: () => number;
   sleep: (ms: number) => Promise<void>;
-  random: () => number;
 };
 
 type Outcome = { status: ExecStatus; checkInId?: string; latencyMs?: number; error?: string };
+
+const RETRY_MS = 30_000;
+const RETRIES = 4;
 
 const failed = (error: string): Outcome => ({ status: "failed", error });
 
@@ -63,7 +65,6 @@ export async function runCheckin(deps: CheckinDeps, input: CheckinInput): Promis
   if (!(await claim("running"))) return "noop";
 
   let attempts = 0;
-  const pause = () => deps.sleep(300 + deps.random() * 200);
 
   const work = async (): Promise<Outcome> => {
     if (
@@ -75,23 +76,27 @@ export async function runCheckin(deps: CheckinDeps, input: CheckinInput): Promis
     }
     const token = await decryptToken(deps.kms, userId, account.tokenEnc);
     const empresaId = Number(schedule.empresaId);
-    const deadline = now() + 90_000;
+    const start = now();
+    let retries = 0;
+    const retry = async () => {
+      if (++retries > RETRIES) return false;
+      await deps.sleep(Math.max(0, start + retries * RETRY_MS - now()));
+      return true;
+    };
     let list: TecnofitEvent[] | undefined;
     while (!list) {
       try {
         list = await listEvents(token, empresaId, classDate);
       } catch (err) {
         if (err instanceof TecnofitUnauthorized || err instanceof TecnofitInvalidResponse) throw err;
-        await pause();
-        if (now() > deadline) return failed("timeout");
+        if (!(await retry())) return failed("timeout");
       }
     }
     const event = list.find((e) => e.name === schedule.className && e.start === `${classDate} ${schedule.startTime}`);
     if (!event) return failed("class_not_found");
     if (event.checkInId !== null) return { status: "success", checkInId: String(event.checkInId) };
 
-    let lastDetail = -Infinity;
-    while (now() <= deadline) {
+    for (;;) {
       attempts++;
       try {
         const res = await checkIn(token, empresaId, classDate, event.classId, event.id);
@@ -103,20 +108,16 @@ export async function runCheckin(deps: CheckinDeps, input: CheckinInput): Promis
       } catch (err) {
         if (err instanceof TecnofitUnauthorized) throw err;
       }
-      if (now() - lastDetail >= 2000) {
-        lastDetail = now();
-        let detail;
-        try {
-          detail = await getEvent(token, empresaId, classDate, event.classId, event.id);
-        } catch (err) {
-          if (err instanceof TecnofitUnauthorized) throw err;
-        }
-        if (detail?.checkedIn) return { status: "success" };
-        if (detail?.onTimeToCheckIn && detail.count >= detail.capacity) return failed("full");
+      let detail;
+      try {
+        detail = await getEvent(token, empresaId, classDate, event.classId, event.id);
+      } catch (err) {
+        if (err instanceof TecnofitUnauthorized) throw err;
       }
-      await pause();
+      if (detail?.checkedIn) return { status: "success" };
+      if (detail?.onTimeToCheckIn && detail.count >= detail.capacity) return failed("full");
+      if (!(await retry())) return failed("timeout");
     }
-    return failed("timeout");
   };
 
   const finish = async (outcome: Outcome) => {

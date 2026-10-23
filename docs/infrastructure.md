@@ -221,7 +221,7 @@ Six functions exist per environment. Their code lives in `apps/functions/<name>/
 
 | Function | Module | Timeout | Trigger |
 | --- | --- | --- | --- |
-| `checkin-<env>-checkin-worker` | `backend` | 120 s | EventBridge Scheduler |
+| `checkin-<env>-checkin-worker` | `backend` | 180 s | EventBridge Scheduler |
 | `checkin-<env>-api-public` | `backend` | 15 s | API Gateway, public routes |
 | `checkin-<env>-api-user` | `backend` | 15 s | API Gateway, user routes |
 | `checkin-<env>-api-admin` | `backend` | 15 s | API Gateway, admin routes (wired in `auth`) |

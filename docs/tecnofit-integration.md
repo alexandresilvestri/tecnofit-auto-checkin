@@ -149,7 +149,7 @@ The response messages are in [api.md](api.md#common-errors) and [openapi.yaml](o
 
 ## Timeouts and retries
 
-The client never retries, and API handlers make one attempt per request. Only the check-in worker retries, inside its deadline. The deadline, Scheduler retries and Lambda timeout are in [architecture.md](architecture.md#check-in-flow).
+The client never retries, and API handlers make one attempt per request. Only the check-in worker retries, up to 4 times. The retry pace, Scheduler retries and Lambda timeout are in [architecture.md](architecture.md#check-in-flow).
 
 ## How the app uses the client
 
@@ -186,22 +186,22 @@ Logging in again is how a user leaves the `reconnect` state. `scripts/connect.ts
 `runCheckin` (`packages/core/domain/checkin.ts`) performs the check-in. EventBridge Scheduler invokes it; timing is in [architecture.md](architecture.md#check-in-flow).
 
 1. Load the schedule, profile and account. Return `noop` if the schedule is missing or inactive, or the profile or account is missing.
-2. Add 719 minutes to the fire time (`classSlotFor`) to get the class date and time.
+2. Add 720 minutes to the fire time (`classSlotFor`) to get the class date and time.
 3. Claim the execution keyed by `(scheduleId, classDate)` with a conditional create. See [data model](data-model.md#idempotent-execution-claim).
    - A suspended profile or a `reconnect` account is claimed as `skipped`, and the run stops.
    - Otherwise the claim is `running`.
    - If the item already exists, the invocation is a duplicate and returns `noop`.
 4. Fail with `window_mismatch` if the slot does not match the schedule's start time, date or weekdays.
-5. Decrypt the token and start the 90 s deadline.
-6. Call `listEvents` until it succeeds, with a 300 to 500 ms random pause between tries. A 401 or an invalid response stops the run. Past the deadline the run fails with `timeout`.
+5. Decrypt the token and start the retry clock. A retry waits for the next 30 s mark from this moment. The run allows 4 retries in total.
+6. Call `listEvents` until it succeeds, with a retry after each failure. A 401 or an invalid response stops the run. With no retries left, the run fails with `timeout`.
 7. Find the event with `name = className` and `start = <classDate> <startTime>`. If none matches, fail with `class_not_found`.
 8. If the event's `checkInId` is not null, finish with `success` and that id.
-9. Call `checkIn` in a loop until the deadline, with the same random pause between tries. Each call adds 1 to `attempts`.
-10. After a failed `checkIn`, call `getEvent` at most once every 2 seconds:
+9. Call `checkIn` in a loop, with a retry after each failure. The retries left from step 6 are shared. Each call adds 1 to `attempts`.
+10. After a failed `checkIn`, call `getEvent`:
     - `checkedIn` is true: finish with `success`.
     - The class is full and `onTimeToCheckIn` is true: fail with `full`.
 11. A successful `checkIn` finishes with `success`, the check-in id and `latencyMs`.
-12. Past the deadline, the run fails with `timeout`.
+12. With no retries left, the run fails with `timeout`.
 
 During the loop, only a 401 stops the run. Other `checkIn` and `getEvent` errors lead to another try.
 
