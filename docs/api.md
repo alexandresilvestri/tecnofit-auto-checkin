@@ -152,7 +152,7 @@ The other lists return everything in one response: invites, users and executions
 | `GET` | `/api/classes` | user | List the box's classes on a date |
 | `GET` | `/api/schedules` | user | List own schedules with next class and last result |
 | `POST` | `/api/schedules` | user | Create a weekly or one-off schedule |
-| `PATCH` | `/api/schedules/{id}` | user | Pause, resume or change the waiting-list option |
+| `PATCH` | `/api/schedules/{id}` | user | Pause or resume |
 | `DELETE` | `/api/schedules/{id}` | user | Delete a schedule |
 | `GET` | `/api/executions` | user | Page through own check-in results |
 | `POST` | `/api/admin/invites` | admin | Create an invite |

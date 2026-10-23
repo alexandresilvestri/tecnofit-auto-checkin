@@ -27,7 +27,7 @@ let details: number;
 let posts: { url: string; auth: string | null; requestWaitingList: boolean }[];
 let eventsReply: () => Response | Promise<Response>;
 let detailReply: () => Response;
-let postReply: (count: number, requestWaitingList: boolean) => Response | Promise<Response>;
+let postReply: (count: number) => Response | Promise<Response>;
 
 const server = setupServer(
   http.get(`${WOD}/calendar/events`, () => {
@@ -45,7 +45,7 @@ const server = setupServer(
       auth: request.headers.get("authorization"),
       requestWaitingList: body.checkIn.requestWaitingList,
     });
-    return postReply(posts.length, body.checkIn.requestWaitingList);
+    return postReply(posts.length);
   }),
 );
 
@@ -71,7 +71,6 @@ type ScheduleOverrides = Partial<{
   kind: "weekly" | "once";
   date: string;
   weekdays: number[];
-  allowWaitingList: boolean;
 }>;
 
 async function seed(schedule: ScheduleOverrides = {}, profileStatus: "active" | "suspended" = "active") {
@@ -107,7 +106,6 @@ async function seed(schedule: ScheduleOverrides = {}, profileStatus: "active" | 
       startTime: "07:00",
       kind: "weekly",
       weekdays: [3],
-      allowWaitingList: true,
       active: true,
       ...schedule,
     })
@@ -162,24 +160,13 @@ it("retries after 3 failures", async () => {
   expect(await exec(input.scheduleId)).toMatchObject({ status: "success", attempts: 4 });
 });
 
-it("joins the waiting list right away when full and allowed", async () => {
+it("fails as full without asking for the waiting list", async () => {
   const input = await seed();
-  detailReply = () => HttpResponse.json(FULL);
-  postReply = (_, requestWaitingList) =>
-    requestWaitingList
-      ? HttpResponse.json({ ...checkInFixture, waitingList: true })
-      : HttpResponse.json({ message: "full" }, { status: 400 });
-  expect(await run(input)).toBe("waitlisted");
-  expect(posts.map((p) => p.requestWaitingList)).toEqual([false, true]);
-  expect(await exec(input.scheduleId)).toMatchObject({ status: "waitlisted", attempts: 2, latencyMs: 0 });
-});
-
-it("fails as full without waiting list", async () => {
-  const input = await seed({ allowWaitingList: false });
   detailReply = () => HttpResponse.json(FULL);
   postReply = () => HttpResponse.json({ message: "full" }, { status: 400 });
   expect(await run(input)).toBe("failed");
   expect(await exec(input.scheduleId)).toMatchObject({ status: "failed", error: "full", attempts: 1 });
+  expect(posts.map((p) => p.requestWaitingList)).toEqual([false]);
 });
 
 it("marks the account for reconnect on 401", async () => {

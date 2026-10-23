@@ -4,7 +4,6 @@ import { Alert } from "../ui/Alert";
 import { Badge, type Tone } from "../ui/Badge";
 import { Button, LinkButton } from "../ui/Button";
 import { Card } from "../ui/Card";
-import { Check } from "../ui/Check";
 import { Confirm } from "../ui/Confirm";
 import { EmptyState } from "../ui/EmptyState";
 import { PageHeader } from "../ui/PageHeader";
@@ -18,7 +17,6 @@ type Schedule = {
   kind: "weekly" | "once";
   weekdays?: number[];
   date?: string;
-  allowWaitingList: boolean;
   active: boolean;
   finished: boolean;
   nextClass: string | null;
@@ -49,7 +47,17 @@ export const fullDate = (iso: string) => `${shortDate(iso)}/${iso.slice(0, 4)}`;
 
 export const stamp = (iso: string) => new Date(iso).toLocaleString("pt-BR");
 
-const nextLabel = (value: string) => `${shortDate(value)} ${value.slice(11, 16)}`;
+const LIST = new Intl.ListFormat("pt-BR");
+
+export const dayList = (days: number[]) => LIST.format([...days].sort().map((d) => WEEKDAYS[d].toLowerCase()));
+
+export const checkinTime = (slot: string) => Date.parse(`${slot.replace(" ", "T")}:00-03:00`) - 719 * 60_000;
+
+export const checkinLabel = (slot: string) => {
+  const local = new Date(checkinTime(slot) - 3 * 3_600_000);
+  const iso = local.toISOString();
+  return `${WEEKDAYS[local.getUTCDay()].toLowerCase()} ${shortDate(iso)} às ${iso.slice(11, 16)}`;
+};
 
 export function Schedules() {
   const [items, setItems] = useState<Schedule[]>();
@@ -74,7 +82,7 @@ export function Schedules() {
       .catch(fail);
   }, []);
 
-  async function change(id: string, body: { active?: boolean; allowWaitingList?: boolean }) {
+  async function change(id: string, body: { active: boolean }) {
     setError("");
     try {
       await patch(`/api/schedules/${id}`, body);
@@ -112,33 +120,22 @@ export function Schedules() {
       )}
       {items?.map((s) => (
         <Card as="article" key={s.scheduleId} className="flex flex-col gap-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-base/6 font-semibold text-fg-emphasis">{s.startTime} — {s.className}</h2>
-              <p className="text-sm/5 text-fg">
-                {s.kind === "weekly"
-                  ? [...(s.weekdays ?? [])].sort().map((d) => WEEKDAYS[d]).join(", ")
-                  : s.date && fullDate(s.date)}
-              </p>
-            </div>
+          <div className="flex items-center justify-between gap-3">
+            <Badge tone="neutral">{s.kind === "weekly" ? "Toda semana" : "Uma vez"}</Badge>
             <Badge tone={s.finished ? "neutral" : s.active ? "success" : "neutral"}>
               {s.finished ? "Encerrado" : s.active ? "Ativo" : "Pausado"}
             </Badge>
           </div>
+          <div className="flex flex-col gap-1">
+            <h2 className="text-base/6 font-semibold text-fg-emphasis">{s.startTime} — {s.className}</h2>
+            <p className="text-sm/5 text-fg">{s.kind === "weekly" ? dayList(s.weekdays ?? []) : s.date && fullDate(s.date)}</p>
+          </div>
           <Stats>
-            <Stat label="Próxima aula">{s.nextClass ? nextLabel(s.nextClass) : "—"}</Stat>
+            <Stat label={s.kind === "weekly" ? "Próximo check-in" : "Check-in"}>{s.nextClass ? checkinLabel(s.nextClass) : "—"}</Stat>
             <Stat label="Último">
               {s.last ? `${shortDate(s.last.classDate)} ${STATUS_LABEL[s.last.status] ?? s.last.status}` : "—"}
             </Stat>
           </Stats>
-          {!s.finished && (
-            <Check
-              id={`wl-${s.scheduleId}`}
-              label="Lista de espera"
-              checked={s.allowWaitingList}
-              onChange={(e) => change(s.scheduleId, { allowWaitingList: e.target.checked })}
-            />
-          )}
           <div className="flex gap-2">
             {!s.finished && (
               <Button variant="secondary" onClick={() => change(s.scheduleId, { active: !s.active })}>

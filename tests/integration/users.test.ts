@@ -113,7 +113,6 @@ afterAll(() => server.close());
 const monday = (userId: string) => ({
   userId,
   className: "TREINO NO RANCHO",
-  allowWaitingList: true,
   refDate: "2026-10-19",
   kind: "weekly" as const,
   startTime: "17:15",

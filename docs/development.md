@@ -210,7 +210,7 @@ Prints a `https://<distribution>/convite#<token>` link and its expiry time in `A
 
 ```bash
 CHECKIN_ENV=dev npm run schedule -- classes --user <userId> --date YYYY-MM-DD
-CHECKIN_ENV=dev npm run schedule -- add --user <userId> --class-name "<name>" --start HH:mm --date YYYY-MM-DD [--weekdays 1,3,5] [--waiting-list]
+CHECKIN_ENV=dev npm run schedule -- add --user <userId> --class-name "<name>" --start HH:mm --date YYYY-MM-DD [--weekdays 1,3,5]
 CHECKIN_ENV=dev npm run schedule -- list --user <userId>
 CHECKIN_ENV=dev npm run schedule -- remove --user <userId> --schedule <scheduleId>
 ```
@@ -218,7 +218,6 @@ CHECKIN_ENV=dev npm run schedule -- remove --user <userId> --schedule <scheduleI
 - `classes` lists the day's classes with occupancy.
 - `add` without `--weekdays` books the class once on `--date`. With `--weekdays`, it books weekly; `--date` is then the date used to confirm the class exists.
 - Weekdays are numbers from `0` (Sunday) to `6` (Saturday).
-- `--waiting-list` allows joining the waiting list when the class is full.
 - `add` prints the new `scheduleId` and its Scheduler expression.
 - `list` and `remove` show and delete a user's schedules.
 

@@ -185,8 +185,8 @@ it.each([
 const fetchHeaders = { "x-requested-with": "fetch" };
 const meta = { ip: "1.2.3.4", userAgent: "ua-test" };
 const invalid = { message: "Requisição inválida." };
-const weekly = { className: "Cross", startTime: "18:30", date: "2026-08-03", kind: "weekly", weekdays: [1, 3], allowWaitingList: true };
-const once = { className: "Cross", startTime: "18:30", date: "2026-08-03", kind: "once", allowWaitingList: false };
+const weekly = { className: "Cross", startTime: "18:30", date: "2026-08-03", kind: "weekly", weekdays: [1, 3] };
+const once = { className: "Cross", startTime: "18:30", date: "2026-08-03", kind: "once" };
 
 it.each(["PATCH", "DELETE"])("%s without X-Requested-With returns 403", async (method) => {
   const res = await send(method, "/api/schedules/sc1", {}, { body: { active: true } });
@@ -219,7 +219,7 @@ it.each([undefined, "date=2026-8-3", "date=abc"])("classes with query %s returns
 });
 
 it("schedules lists cards with nextClass and last", async () => {
-  const base = { userId: "u1", empresaId: "9", className: "Cross", startTime: "18:30", allowWaitingList: true };
+  const base = { userId: "u1", empresaId: "9", className: "Cross", startTime: "18:30" };
   sched.listSchedules.mockResolvedValue([
     { ...base, scheduleId: "a", kind: "weekly", weekdays: [1], active: true },
     { ...base, scheduleId: "b", kind: "once", date: "2099-01-05", active: false },
@@ -240,7 +240,7 @@ it("schedules lists cards with nextClass and last", async () => {
 });
 
 it("schedules marks fired once schedules as finished and sorts weekly first", async () => {
-  const base = { userId: "u1", empresaId: "9", className: "Cross", allowWaitingList: false, active: true };
+  const base = { userId: "u1", empresaId: "9", className: "Cross", active: true };
   sched.listSchedules.mockResolvedValue([
     { ...base, scheduleId: "o2", kind: "once", date: "2099-01-06", startTime: "07:00" },
     { ...base, scheduleId: "o1", kind: "once", date: "2020-01-05", startTime: "18:30" },
@@ -257,8 +257,8 @@ it("schedules marks fired once schedules as finished and sorts weekly first", as
 });
 
 it.each([
-  [weekly, { userId: "u1", className: "Cross", allowWaitingList: true, refDate: "2026-08-03", kind: "weekly", startTime: "18:30", weekdays: [1, 3] }],
-  [once, { userId: "u1", className: "Cross", allowWaitingList: false, refDate: "2026-08-03", kind: "once", startTime: "18:30", date: "2026-08-03" }],
+  [weekly, { userId: "u1", className: "Cross", refDate: "2026-08-03", kind: "weekly", startTime: "18:30", weekdays: [1, 3] }],
+  [once, { userId: "u1", className: "Cross", refDate: "2026-08-03", kind: "once", startTime: "18:30", date: "2026-08-03" }],
 ])("create schedule returns 201 and audits", async (body, expected) => {
   sched.addSchedule.mockResolvedValue("sc1");
   const res = await send("POST", "/api/schedules", fetchHeaders, { body });
@@ -283,7 +283,6 @@ it.each([
   ["bad startTime format", { ...weekly, startTime: "9:30" }],
   ["bad date", { ...weekly, date: "03/08/2026" }],
   ["bad kind", { ...weekly, kind: "daily" }],
-  ["missing waiting list", { ...weekly, allowWaitingList: undefined }],
   ["weekly without weekdays", { ...weekly, weekdays: undefined }],
   ["empty weekdays", { ...weekly, weekdays: [] }],
   ["repeated weekdays", { ...weekly, weekdays: [1, 1] }],
@@ -303,9 +302,8 @@ it("create schedule with non-json body returns 400", async () => {
 
 it.each([
   [{ active: false }, { active: false }],
-  [{ allowWaitingList: true }, { allowWaitingList: true }],
-  [{ active: true, allowWaitingList: false }, { active: true, allowWaitingList: false }],
-])("patch schedule passes only present keys and audits", async (body, expected) => {
+  [{ active: true, allowWaitingList: false }, { active: true }],
+])("patch schedule passes only active and audits", async (body, expected) => {
   const res = await send("PATCH", "/api/schedules/sc1", fetchHeaders, { body });
   expect(res.statusCode).toBe(204);
   expect(sched.updateSchedule.mock.calls[0]!.slice(1)).toEqual(["u1", "sc1", expected]);

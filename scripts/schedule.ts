@@ -5,7 +5,7 @@ import { loadEnv } from "./env.js";
 
 const USAGE = `Usage:
   schedule classes --user <u> --date YYYY-MM-DD
-  schedule add --user <u> --class-name <name> --start HH:mm --date YYYY-MM-DD [--weekdays 1,3,5] [--waiting-list]
+  schedule add --user <u> --class-name <name> --start HH:mm --date YYYY-MM-DD [--weekdays 1,3,5]
   schedule list --user <u>
   schedule remove --user <u> --schedule <s>`;
 
@@ -25,7 +25,6 @@ const { values } = parseArgs({
     "class-name": { type: "string" },
     start: { type: "string" },
     weekdays: { type: "string" },
-    "waiting-list": { type: "boolean" },
     schedule: { type: "string" },
   },
 });
@@ -53,7 +52,6 @@ if (command === "classes") {
     const scheduleId = await addSchedule(deps, {
       userId,
       className: values["class-name"]!,
-      allowWaitingList: values["waiting-list"] ?? false,
       refDate: date,
       ...spec,
     });
@@ -67,7 +65,7 @@ if (command === "classes") {
 } else if (command === "list") {
   for (const s of await listSchedules(entities, userId)) {
     const when = s.kind === "weekly" ? (s.weekdays ?? []).join(",") : s.date;
-    console.log(`${s.scheduleId} · ${s.className} · ${s.startTime} · ${when} · ${s.allowWaitingList ? "waitlist" : "no waitlist"}`);
+    console.log(`${s.scheduleId} · ${s.className} · ${s.startTime} · ${when}`);
   }
 } else {
   await removeSchedule(deps, userId, values.schedule!);

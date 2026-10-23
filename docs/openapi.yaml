@@ -391,8 +391,8 @@ paths:
     patch:
       tags: [user]
       operationId: updateSchedule
-      summary: Pause, resume or change waiting-list option
-      description: Changing `active` enables or disables the EventBridge schedule. Only the keys present are changed.
+      summary: Pause or resume
+      description: Changing `active` enables or disables the EventBridge schedule.
       security:
         - sessionCookie: []
       parameters:
@@ -1314,7 +1314,7 @@ components:
           description: As reported by Tecnofit.
     ScheduleFields:
       type: object
-      required: [className, startTime, date, allowWaitingList]
+      required: [className, startTime, date]
       properties:
         className:
           type: string
@@ -1325,9 +1325,6 @@ components:
           $ref: '#/components/schemas/ClockTime'
         date:
           $ref: '#/components/schemas/IsoDate'
-        allowWaitingList:
-          type: boolean
-          description: Join the waiting list when the class is full.
     WeeklyScheduleCreate:
       allOf:
         - $ref: '#/components/schemas/ScheduleFields'
@@ -1368,19 +1365,14 @@ components:
           description: '`s_<uuid>`.'
     SchedulePatch:
       type: object
-      description: At least one of the two keys is required.
+      required: [active]
       properties:
         active:
           type: boolean
           description: '`false` pauses, `true` resumes.'
-        allowWaitingList:
-          type: boolean
-      anyOf:
-        - required: [active]
-        - required: [allowWaitingList]
     ScheduleBase:
       type: object
-      required: [scheduleId, className, startTime, kind, allowWaitingList, active]
+      required: [scheduleId, className, startTime, kind, active]
       properties:
         scheduleId:
           type: string
@@ -1398,8 +1390,6 @@ components:
         date:
           $ref: '#/components/schemas/IsoDate'
           description: Present for `once` only.
-        allowWaitingList:
-          type: boolean
         active:
           type: boolean
     ScheduleCard:

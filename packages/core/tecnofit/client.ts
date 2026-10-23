@@ -143,11 +143,10 @@ export async function checkIn(
   date: string,
   classId: number,
   eventId: number,
-  requestWaitingList: boolean,
 ): Promise<{ id: number; waitingList: boolean }> {
   return request(
     z.object({ id: z.number(), waitingList: z.boolean() }),
     `${eventPath(empresaId, date, classId, eventId)}/check-in`,
-    { token, body: { checkIn: { requestWaitingList } } },
+    { token, body: { checkIn: { requestWaitingList: false } } },
   );
 }

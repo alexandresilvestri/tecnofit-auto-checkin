@@ -49,7 +49,6 @@ it("round-trips once and weekly schedules", async () => {
     empresaId: "e1",
     className: "CrossFit",
     startTime: "17:15",
-    allowWaitingList: true,
     active: true,
   };
   const once = {
