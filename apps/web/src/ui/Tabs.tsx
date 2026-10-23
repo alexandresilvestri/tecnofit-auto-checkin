@@ -10,7 +10,7 @@ export const activeTab = (items: Tab[]) =>
 export function Tabs({ items }: { items: Tab[] }) {
   const active = activeTab(items);
   return (
-    <nav className="flex min-w-0 basis-full gap-1 overflow-x-auto sm:basis-auto">
+    <nav className="flex min-w-0 gap-1 overflow-x-auto">
       {items.map((t) => (
         <a
           key={t.href}

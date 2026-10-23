@@ -132,10 +132,11 @@ export function UserDetail({ id }: { id: string }) {
       <Card title="Agendamentos">
         {data.schedules.length === 0 && <p className="text-fg">Nenhum agendamento.</p>}
         {data.schedules.length > 0 && (
-          <Table head={["Aula", "Quando", "Estado"]}>
+          <Table head={["Aula", "Tipo", "Quando", "Estado"]}>
             {data.schedules.map((s) => (
               <tr key={s.scheduleId}>
                 <td className="text-fg-emphasis">{s.startTime} — {s.className}</td>
+                <td><Badge tone="neutral">{s.kind === "weekly" ? "Toda semana" : "Uma vez"}</Badge></td>
                 <td>
                   {s.kind === "weekly"
                     ? [...(s.weekdays ?? [])].sort().map((d) => WEEKDAYS[d]).join(", ")

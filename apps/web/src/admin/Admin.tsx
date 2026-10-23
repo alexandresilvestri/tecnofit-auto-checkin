@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { AdminShell } from "../shell/Shell";
-import { Button } from "../ui/Button";
 import { Audit } from "./Audit";
 import { Executions } from "./Executions";
 import { Invites } from "./Invites";
@@ -45,7 +44,7 @@ function Screen() {
 
 export default function Admin() {
   return (
-    <AdminShell right={<Button variant="ghost" onClick={logout}>Sair</Button>}>
+    <AdminShell onLogout={logout}>
       <Screen />
     </AdminShell>
   );
