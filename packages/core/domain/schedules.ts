@@ -42,6 +42,13 @@ export class TooLate extends Error {
   }
 }
 
+export class AlreadyScheduled extends Error {
+  constructor() {
+    super("Class already scheduled");
+    this.name = "AlreadyScheduled";
+  }
+}
+
 export class ScheduleNotFound extends Error {
   constructor() {
     super("Schedule not found");
@@ -130,6 +137,17 @@ export async function addSchedule(deps: ScheduleDeps, input: AddScheduleInput): 
   const { entities, scheduler } = deps;
   const { userId, className, refDate, ...spec } = input;
   if (spec.kind === "once" && nextClass(spec, deps.now()) === null) throw new TooLate();
+  const days = (s: ScheduleSpec) => (s.kind === "weekly" ? s.weekdays : [new Date(s.date).getUTCDay()]);
+  const mine = days(spec);
+  const taken = (await listSchedules(entities, userId)).some((row) => {
+    if (row.className !== className || row.startTime !== spec.startTime) return false;
+    const other = specOf(row);
+    if (other.kind === "once" && nextClass(other, deps.now()) === null) return false;
+    return spec.kind === "once" && other.kind === "once"
+      ? spec.date === other.date
+      : days(other).some((d) => mine.includes(d));
+  });
+  if (taken) throw new AlreadyScheduled();
   const empresaId = await withToken(deps, userId, async (token, account) => {
     const found = (await listEvents(token, Number(account.empresaId), refDate)).some(
       (e) => e.name === className && e.start === `${refDate} ${spec.startTime}`,

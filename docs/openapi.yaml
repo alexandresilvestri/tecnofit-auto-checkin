@@ -338,6 +338,7 @@ paths:
         Looks up the Tecnofit agenda on `date` for a class with exactly `className` starting at `startTime`.
         For `weekly`, `date` is only the reference day for that lookup.
         For `once`, the class must start more than 12 h from now.
+        Refused when another schedule of the user, active or paused, has the same `className` and `startTime` and covers the same date or weekday.
         Creates an EventBridge Scheduler job that fires 12 h before each class.
       security:
         - sessionCookie: []
@@ -363,7 +364,20 @@ paths:
         '403':
           $ref: '#/components/responses/UserWriteForbidden'
         '409':
-          $ref: '#/components/responses/TecnofitExpired'
+          description: Tecnofit rejected the stored token, or the user already has a schedule for this class.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                expired:
+                  summary: Tecnofit connection expired. Reconnect the account.
+                  value:
+                    message: Conexão com a Tecnofit expirada. Reconecte a conta.
+                alreadyScheduled:
+                  summary: The user already has a schedule for this class.
+                  value:
+                    message: Você já possui um agendamento para esta aula.
         '422':
           description: The class is not on the agenda, or a one-off class is too close.
           content:

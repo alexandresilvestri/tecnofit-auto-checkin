@@ -1,5 +1,5 @@
 import { parseArgs } from "node:util";
-import { addSchedule, ClassNotFound, listClasses, listSchedules, removeSchedule, TooLate } from "@checkin/core/domain/schedules";
+import { addSchedule, AlreadyScheduled, ClassNotFound, listClasses, listSchedules, removeSchedule, TooLate } from "@checkin/core/domain/schedules";
 import { scheduleExpression, type ScheduleSpec } from "@checkin/core/domain/time";
 import { loadEnv } from "./env.js";
 
@@ -59,6 +59,7 @@ if (command === "classes") {
   } catch (err) {
     if (err instanceof TooLate) console.error("Check-in already open for that class");
     else if (err instanceof ClassNotFound) console.error("Class not found on that date and time");
+    else if (err instanceof AlreadyScheduled) console.error("Class already scheduled");
     else throw err;
     process.exit(1);
   }

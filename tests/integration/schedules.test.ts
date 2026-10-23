@@ -15,6 +15,7 @@ import { encryptToken } from "../../packages/core/crypto/token.js";
 import type { Entities } from "../../packages/core/db/entities.js";
 import {
   addSchedule,
+  AlreadyScheduled,
   ClassNotFound,
   InvalidCursor,
   listClasses,
@@ -200,6 +201,40 @@ describe("CreateSchedule input", () => {
     );
     expect(schedulerMock.calls()).toHaveLength(0);
     expect(await listSchedules(e, userId)).toEqual([]);
+  });
+
+  it.each([
+    ["the same one-off", once, once],
+    ["a one-off on a weekly day", weekly, once],
+    ["a weekly over a one-off day", once, weekly],
+    ["a weekly sharing a weekday", weekly, (userId: string) => ({ ...weekly(userId), weekdays: [3, 4] })],
+  ])("throws AlreadyScheduled for %s before touching Tecnofit or Scheduler", async (_, first, second) => {
+    const userId = await seedUser();
+    const d = deps(schedulerMock as unknown as SchedulerClient);
+    await addSchedule(d, first(userId));
+    requested = [];
+    await expect(addSchedule(d, second(userId))).rejects.toBeInstanceOf(AlreadyScheduled);
+    expect(requested).toEqual([]);
+    expect(schedulerMock.commandCalls(CreateScheduleCommand)).toHaveLength(1);
+    expect(await listSchedules(e, userId)).toHaveLength(1);
+  });
+
+  it("counts a paused schedule", async () => {
+    const userId = await seedUser();
+    const d = deps(schedulerMock as unknown as SchedulerClient);
+    const scheduleId = await addSchedule(d, weekly(userId));
+    await e.schedule.patch({ userId, scheduleId }).set({ active: false }).go();
+    await expect(addSchedule(d, once(userId))).rejects.toBeInstanceOf(AlreadyScheduled);
+  });
+
+  it("allows the same class on another weekday or after its one-off finished", async () => {
+    const userId = await seedUser();
+    const d = deps(schedulerMock as unknown as SchedulerClient);
+    const thursday = { ...weekly(userId), weekdays: [4] };
+    await addSchedule(d, once(userId));
+    await addSchedule(d, thursday);
+    await addSchedule({ ...d, now: () => Date.parse("2026-10-20T22:01:00Z") }, weekly(userId));
+    expect(await listSchedules(e, userId)).toHaveLength(3);
   });
 });
 

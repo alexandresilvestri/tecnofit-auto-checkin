@@ -136,7 +136,7 @@ describe("deleteUser", () => {
     await seed("u_keep");
     const ids = [
       await addSchedule(deps, monday("u_del")),
-      await addSchedule(deps, monday("u_del")),
+      await addSchedule(deps, { ...monday("u_del"), weekdays: [2] }),
     ];
     const keepId = await addSchedule(deps, monday("u_keep"));
     for (const userId of ["u_del", "u_keep"]) {
@@ -214,7 +214,7 @@ describe("suspendUser / reactivateUser", () => {
     await seed("u_susp");
     await seed("u_other");
     const a = await addSchedule(deps, monday("u_susp"));
-    const b = await addSchedule(deps, monday("u_susp"));
+    const b = await addSchedule(deps, { ...monday("u_susp"), weekdays: [2] });
     await updateSchedule(deps, "u_susp", b, { active: false });
     await createSession(e, "u_susp", { ip: "1.1.1.1", userAgent: "ua" }, NOW);
     await createSession(e, "u_other", { ip: "1.1.1.1", userAgent: "ua" }, NOW);

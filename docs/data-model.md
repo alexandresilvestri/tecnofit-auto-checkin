@@ -122,6 +122,8 @@ A recurring or one-off check-in rule. Each item pairs with an EventBridge Schedu
 
 `addSchedule`, `updateSchedule` and `removeSchedule` in `packages/core/domain/schedules.ts` write it.
 
+A user has at most one schedule per class. `addSchedule` raises `AlreadyScheduled` when another item, active or paused, has the same `className` and `startTime` and covers the same class: the same `date`, a shared weekday, or a `date` on one of the `weekdays`. A finished `once` item does not count.
+
 ### execution
 
 One check-in run for one schedule and one class date. The worker creates and finishes it in `runCheckin`.
