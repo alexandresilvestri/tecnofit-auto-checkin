@@ -59,7 +59,7 @@ if (command === "classes") {
   } catch (err) {
     if (err instanceof TooLate) console.error("Check-in already open for that class");
     else if (err instanceof ClassNotFound) console.error("Class not found on that date and time");
-    else if (err instanceof AlreadyScheduled) console.error("Class already scheduled");
+    else if (err instanceof AlreadyScheduled) console.error("Day already scheduled");
     else throw err;
     process.exit(1);
   }

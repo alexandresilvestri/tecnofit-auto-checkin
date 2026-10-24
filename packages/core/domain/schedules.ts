@@ -44,7 +44,7 @@ export class TooLate extends Error {
 
 export class AlreadyScheduled extends Error {
   constructor() {
-    super("Class already scheduled");
+    super("Day already scheduled");
     this.name = "AlreadyScheduled";
   }
 }
@@ -140,7 +140,6 @@ export async function addSchedule(deps: ScheduleDeps, input: AddScheduleInput): 
   const days = (s: ScheduleSpec) => (s.kind === "weekly" ? s.weekdays : [new Date(s.date).getUTCDay()]);
   const mine = days(spec);
   const taken = (await listSchedules(entities, userId)).some((row) => {
-    if (row.className !== className || row.startTime !== spec.startTime) return false;
     const other = specOf(row);
     if (other.kind === "once" && nextClass(other, deps.now()) === null) return false;
     return spec.kind === "once" && other.kind === "once"

@@ -81,7 +81,7 @@ const mapError = (err: unknown): [400 | 404 | 409 | 422 | 500 | 502, string] => 
   if (err instanceof InvalidCursor) return [400, invalidRequest.message];
   if (err instanceof ClassNotFound) return [422, "Aula não encontrada na agenda."];
   if (err instanceof TooLate) return [422, "O check-in desta aula já foi liberado. Faça pelo app da Tecnofit."];
-  if (err instanceof AlreadyScheduled) return [409, "Você já possui um agendamento para esta aula."];
+  if (err instanceof AlreadyScheduled) return [409, "Você já possui um agendamento para este dia."];
   if (err instanceof ScheduleNotFound) return [404, "Agendamento não encontrado."];
   if (err instanceof ScheduleFinished) return [409, "Este agendamento já foi executado."];
   if (err instanceof TecnofitUnauthorized) return [409, "Conexão com a Tecnofit expirada. Reconecte a conta."];

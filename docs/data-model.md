@@ -122,7 +122,7 @@ A recurring or one-off check-in rule. Each item pairs with an EventBridge Schedu
 
 `addSchedule`, `updateSchedule` and `removeSchedule` in `packages/core/domain/schedules.ts` write it.
 
-A user has at most one schedule per class. `addSchedule` raises `AlreadyScheduled` when another item, active or paused, has the same `className` and `startTime` and covers the same class: the same `date`, a shared weekday, or a `date` on one of the `weekdays`. A finished `once` item does not count.
+A user has at most one schedule per day, since Tecnofit allows one check-in per day. `addSchedule` raises `AlreadyScheduled` when another item, active or paused, of any class and time covers the same day: the same `date`, a shared weekday, or a `date` on one of the `weekdays`. A finished `once` item does not count.
 
 ### execution
 

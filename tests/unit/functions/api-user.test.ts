@@ -421,7 +421,7 @@ it("delete me removes the user, audits and clears the cookie", async () => {
 it.each([
   [new ClassNotFound(), 422, "Aula não encontrada na agenda."],
   [new TooLate(), 422, "O check-in desta aula já foi liberado. Faça pelo app da Tecnofit."],
-  [new AlreadyScheduled(), 409, "Você já possui um agendamento para esta aula."],
+  [new AlreadyScheduled(), 409, "Você já possui um agendamento para este dia."],
   [new ScheduleNotFound(), 404, "Agendamento não encontrado."],
   [new ScheduleFinished(), 409, "Este agendamento já foi executado."],
   [new TecnofitUnauthorized(), 409, "Conexão com a Tecnofit expirada. Reconecte a conta."],

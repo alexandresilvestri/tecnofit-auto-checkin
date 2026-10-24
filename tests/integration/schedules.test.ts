@@ -208,6 +208,7 @@ describe("CreateSchedule input", () => {
     ["a one-off on a weekly day", weekly, once],
     ["a weekly over a one-off day", once, weekly],
     ["a weekly sharing a weekday", weekly, (userId: string) => ({ ...weekly(userId), weekdays: [3, 4] })],
+    ["another class on the same day", once, (userId: string) => ({ ...once(userId), className: "OUTRA AULA", startTime: "18:00" })],
   ])("throws AlreadyScheduled for %s before touching Tecnofit or Scheduler", async (_, first, second) => {
     const userId = await seedUser();
     const d = deps(schedulerMock as unknown as SchedulerClient);
