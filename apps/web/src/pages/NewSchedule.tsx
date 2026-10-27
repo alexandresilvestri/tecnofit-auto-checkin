@@ -1,5 +1,6 @@
 import { useState, type SubmitEvent } from "react";
 import { errorMessage, get, guard, post } from "../api";
+import { Alert } from "../ui/Alert";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
@@ -122,6 +123,7 @@ export function NewSchedule() {
 
   const slot = selected && (weekly ? nextSlot(weekdays, selected.time) : `${date} ${selected.time}`);
   const tooLate = !weekly && !!slot && checkinTime(slot) <= Date.now();
+  const mixed = weekdays.includes(6) && weekdays.some((d) => d < 6);
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
@@ -151,6 +153,11 @@ export function NewSchedule() {
               </label>
             ))}
           </div>
+          {mixed && (
+            <Alert tone="warning" role="status">
+              O agendamento semanal de sábado deve ser criado separadamente do agendamento para dias da semana.
+            </Alert>
+          )}
         </fieldset>
       ) : (
         <Field label="Data" htmlFor="date">

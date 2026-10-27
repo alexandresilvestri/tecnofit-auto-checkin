@@ -84,6 +84,13 @@ test("convite, cadastro e agendamento semanal", async ({ page }) => {
   await page.getByRole("link", { name: "Novo" }).click();
   await page.getByLabel("Toda semana").check();
   await expect(page.getByLabel("Dom")).toHaveCount(0);
+  const mixed = page.getByText(/^O agendamento semanal de sábado deve ser criado separadamente/);
+  await page.getByLabel("Sex").check();
+  await page.getByLabel("Sáb").check();
+  await expect(mixed).toBeVisible();
+  await page.getByLabel("Sex").uncheck();
+  await expect(mixed).toHaveCount(0);
+  await page.getByLabel("Sáb").uncheck();
   await page.getByLabel("Seg").check();
   await page.getByRole("button", { name: "Buscar aulas" }).click();
   await expect(page.getByRole("group", { name: "Aulas em seg" })).toBeVisible();
