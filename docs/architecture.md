@@ -275,7 +275,7 @@ Code layout:
 
 Lambdas log structured JSON with Powertools Logger and have X-Ray active tracing. Metric filters and alarms notify SNS `checkin-<env>-alarms`; see [runbook.md](runbook.md#alarms). The worker writes no audit events; execution rows hold its outcomes.
 
-Errors go to Sentry in prod only: project `tecnofit-auto-checkin-api` for all Lambdas and `tecnofit-auto-checkin-web` for the SPA. Without a DSN the SDK stays off, so dev and local send nothing. Only error events are sent: no tracing, no replay. `packages/core/observability/scrub.ts` drops request data, user, extras, breadcrumbs and exception messages, so an event keeps only the exception type and stack. Lambdas are wrapped by `withSentry` (`packages/core/observability/sentry.ts`). The Hono APIs also report errors that map to 500. The worker rethrows its sanitized error with the original as `cause`, so Sentry keeps the original stack.
+Errors go to Sentry in prod only: project `tecnofit-auto-checkin-api` for all Lambdas and `tecnofit-auto-checkin-web` for the SPA. Without a DSN the SDK stays off, so dev and local send nothing. Only error events are sent: no tracing, no replay. `packages/core/observability/scrub.ts` drops request data, user, extras, breadcrumbs and exception messages, so an event keeps only the exception type and stack. Lambdas are wrapped by `withSentry` (`packages/core/observability/sentry.ts`). The Hono APIs also report errors that map to 500. The worker rethrows its sanitized error with the original as `cause`, so Sentry keeps the original stack. The SPA wraps its root in `Sentry.ErrorBoundary`, which shows a reload screen on a render crash. `createRoot` also reports uncaught and recoverable React errors through `Sentry.reactErrorHandler()`.
 
 ## Known limitations
 

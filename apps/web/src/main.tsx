@@ -2,6 +2,7 @@ import "./theme";
 import { scrub } from "@checkin/core/observability/scrub";
 import * as Sentry from "@sentry/react";
 import { Suspense, lazy } from "react";
+import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { Account } from "./pages/Account";
 import { History } from "./pages/History";
@@ -11,6 +12,8 @@ import { NewSchedule } from "./pages/NewSchedule";
 import { Schedules } from "./pages/Schedules";
 import { AdminShell, AppShell, AuthShell } from "./shell/Shell";
 import "./styles.css";
+import { Button } from "./ui/Button";
+import { EmptyState } from "./ui/EmptyState";
 import { Loading } from "./ui/Text";
 
 Sentry.init({
@@ -29,17 +32,30 @@ const pages: Record<string, () => React.JSX.Element> = {
 
 const Admin = lazy(() => import("./admin/Admin"));
 
-const root = createRoot(document.getElementById("root")!);
+const root = createRoot(document.getElementById("root")!, {
+  onUncaughtError: Sentry.reactErrorHandler(),
+  onRecoverableError: Sentry.reactErrorHandler(),
+});
+
+const crashed = (
+  <AuthShell>
+    <EmptyState title="Algo deu errado" text="Recarregue a página para tentar de novo.">
+      <Button onClick={() => location.reload()}>Recarregar</Button>
+    </EmptyState>
+  </AuthShell>
+);
+
+const render = (node: ReactNode) => root.render(<Sentry.ErrorBoundary fallback={crashed}>{node}</Sentry.ErrorBoundary>);
 
 if (location.pathname.startsWith("/admin")) {
-  root.render(
+  render(
     <Suspense fallback={<AdminShell><Loading /></AdminShell>}>
       <Admin />
     </Suspense>,
   );
 } else if (location.pathname === "/convite") {
-  root.render(<AuthShell><Invite /></AuthShell>);
+  render(<AuthShell><Invite /></AuthShell>);
 } else {
   const Page = pages[location.pathname];
-  root.render(Page ? <AppShell><Page /></AppShell> : <AuthShell title="Check-in automático"><Login /></AuthShell>);
+  render(Page ? <AppShell><Page /></AppShell> : <AuthShell title="Check-in automático"><Login /></AuthShell>);
 }
