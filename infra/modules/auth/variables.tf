@@ -45,3 +45,8 @@ variable "audit_table_name" {
 variable "audit_table_arn" {
   type = string
 }
+
+variable "sentry_dsn" {
+  type    = string
+  default = ""
+}

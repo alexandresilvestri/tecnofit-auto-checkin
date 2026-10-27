@@ -73,13 +73,13 @@ resource "aws_lambda_function" "post_auth" {
   s3_bucket     = var.artifacts_bucket
   s3_key        = "${var.artifact_version}/cognito-post-auth.zip"
 
-  # Only table names live here; no secrets.
+  # Only table names and the Sentry DSN live here; no secrets.
   # nosemgrep: terraform.aws.security.aws-lambda-environment-unencrypted.aws-lambda-environment-unencrypted
   environment {
-    variables = {
+    variables = merge({
       TABLE_MAIN  = var.main_table_name
       TABLE_AUDIT = var.audit_table_name
-    }
+    }, var.sentry_dsn == "" ? {} : { SENTRY_DSN = var.sentry_dsn })
   }
 
   tracing_config {

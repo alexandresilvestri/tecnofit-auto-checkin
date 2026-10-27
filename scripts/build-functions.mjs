@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { readdirSync } from "node:fs";
 
 const banner =
-  'import { createRequire } from "module"; const require = createRequire(import.meta.url);';
+  'import { createRequire as __createRequire } from "module"; const require = __createRequire(import.meta.url);';
 
 for (const entry of readdirSync("apps/functions", { withFileTypes: true })) {
   if (!entry.isDirectory()) continue;

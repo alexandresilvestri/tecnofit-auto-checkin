@@ -4,6 +4,7 @@ import { KMSClient } from "@aws-sdk/client-kms";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { runCheckin } from "@checkin/core/domain/checkin";
 import { createEntities } from "@checkin/core/db/entities";
+import { withSentry } from "@checkin/core/observability/sentry";
 import { z } from "zod";
 
 const logger = new Logger({ serviceName: "checkin-worker" });
@@ -26,7 +27,7 @@ const deps = {
   sleep: (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
 };
 
-export const handler = async (event: z.infer<typeof eventSchema>) => {
+export const handler = withSentry(async (event: z.infer<typeof eventSchema>) => {
   const input = eventSchema.parse(event);
   try {
     const status = await runCheckin(deps, input);
@@ -35,7 +36,7 @@ export const handler = async (event: z.infer<typeof eventSchema>) => {
   } catch (err) {
     const error = err instanceof Error ? err.name : "unknown";
     logger.error("checkin failed", { ...input, error });
-    const sanitized = new Error(error);
+    const sanitized = new Error(error, { cause: err });
     throw sanitized;
   }
-};
+});

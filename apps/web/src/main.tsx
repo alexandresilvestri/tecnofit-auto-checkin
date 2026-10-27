@@ -1,4 +1,6 @@
 import "./theme";
+import { scrub } from "@checkin/core/observability/scrub";
+import * as Sentry from "@sentry/react";
 import { Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import { Account } from "./pages/Account";
@@ -10,6 +12,12 @@ import { Schedules } from "./pages/Schedules";
 import { AdminShell, AppShell, AuthShell } from "./shell/Shell";
 import "./styles.css";
 import { Loading } from "./ui/Text";
+
+Sentry.init({
+  dsn: import.meta.env.VITE_SENTRY_DSN,
+  beforeSend: scrub,
+  integrations: (defaults) => defaults.filter((i) => i.name !== "Breadcrumbs" && i.name !== "BrowserSession"),
+});
 
 const pages: Record<string, () => React.JSX.Element> = {
   "/": Schedules,

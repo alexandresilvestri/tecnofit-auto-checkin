@@ -33,3 +33,8 @@ variable "audit_table_arn" {
 variable "alarm_email" {
   type = string
 }
+
+variable "sentry_dsn" {
+  type    = string
+  default = ""
+}

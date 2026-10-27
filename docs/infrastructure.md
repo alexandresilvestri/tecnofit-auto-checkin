@@ -137,6 +137,13 @@ Workspace environment variables on `checkin-dev` and `checkin-prod`:
 | `TFC_AWS_PROVIDER_AUTH` | `true` |
 | `TFC_AWS_RUN_ROLE_ARN` | Bootstrap output `hcp_dev_role_arn` or `hcp_prod_role_arn` |
 
+Terraform variables on `checkin-prod` only. Both are required, and an empty string turns Sentry off:
+
+| Variable | Value |
+| --- | --- |
+| `sentry_dsn_api` | DSN of Sentry project `tecnofit-auto-checkin-api` |
+| `sentry_dsn_web` | DSN of Sentry project `tecnofit-auto-checkin-web` |
+
 ## IAM and OIDC
 
 No long-lived AWS keys exist for CI. GitHub Actions and HCP Terraform both assume roles through OIDC.
@@ -230,7 +237,7 @@ Six functions exist per environment. Their code lives in `apps/functions/<name>/
 
 All functions use 256 MB, X-Ray active tracing and a Terraform-managed log group with 30-day retention. Each has its own role and inline policy, named `checkin-<env>-<name>`. Code comes from `s3://<artifacts-bucket>/<artifact_version>/<name>.zip`.
 
-Per-function environment variables and IAM permissions are in `local.api_functions` in `infra/modules/backend/main.tf`. The worker and `cognito-post-auth` declare theirs explicitly.
+Per-function environment variables and IAM permissions are in `local.api_functions` in `infra/modules/backend/main.tf`. The worker and `cognito-post-auth` declare theirs explicitly. All six also get `SENTRY_DSN` when the module's `sentry_dsn` is set (prod only).
 
 `scripts/build-functions.mjs` builds one zip per directory in `apps/functions/`. It bundles `index.ts` with esbuild into an ESM `index.mjs`, then zips it.
 
@@ -256,7 +263,7 @@ Terraform creates no schedules. The application creates one schedule per booking
 
 `module.frontend` creates one distribution per environment, with comment `checkin-<env>`. It serves the web bucket through origin access control and forwards `/api/*` to the API with the `X-Origin-Verify` header. Settings are in `infra/modules/frontend/main.tf`.
 
-The response headers policy `checkin-<env>-web` sets the CSP. The CSP allows `connect-src` to the Cognito domain so the admin SPA can call the token endpoint.
+The response headers policy `checkin-<env>-web` sets the CSP. The CSP allows `connect-src` to the Cognito domain so the admin SPA can call the token endpoint. When `sentry_dsn` is set, it also allows the Sentry ingest host taken from the DSN.
 
 ### Custom domain
 

@@ -55,6 +55,7 @@ module "auth" {
   main_table_name      = module.data.main_table_name
   audit_table_name     = module.data.audit_table_name
   audit_table_arn      = module.data.audit_table_arn
+  sentry_dsn           = var.sentry_dsn_api
 }
 
 module "backend" {
@@ -68,6 +69,7 @@ module "backend" {
   audit_table_arn  = module.data.audit_table_arn
   token_key_arn    = module.data.token_key_arn
   alarm_email      = "airtontunni@gmail.com"
+  sentry_dsn       = var.sentry_dsn_api
 }
 
 module "data" {
@@ -84,4 +86,5 @@ module "frontend" {
   origin_secret      = module.backend.origin_secret
   domain             = "checkin.alexandresilvestri.com.br"
   certificate_arn    = data.aws_acm_certificate.web.arn
+  sentry_dsn         = var.sentry_dsn_web
 }

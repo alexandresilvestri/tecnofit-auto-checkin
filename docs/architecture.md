@@ -115,6 +115,8 @@ packages/core/            @checkin/core: raw TypeScript shared by Lambdas, scrip
   domain/time.ts          time zone, fire offset, cron/at expressions
   domain/users.ts         suspend, reactivate, delete, revoke sessions
   http/origin.ts          X-Origin-Verify check
+  observability/scrub.ts  strips PII from Sentry events (Lambdas and SPA)
+  observability/sentry.ts Sentry init and withSentry handler wrapper
   tecnofit/client.ts      Tecnofit HTTP client with zod-validated responses
 apps/functions/<name>/    one Lambda per folder (index.ts exports handler)
 apps/web/                 SPA (React, Vite, Tailwind v4)
@@ -142,7 +144,7 @@ Security controls:
 - **Admin.** Cognito with admin-created users only and TOTP MFA required. The SPA uses the authorization code flow with PKCE (S256) and a `state` check. `api-admin` also requires `admin` in the `cognito:groups` claim.
 - **Tecnofit credentials.** The password is only forwarded to Tecnofit at login and is never stored. The token is KMS-encrypted with encryption context `{ userId }`. The key policy limits token use to the worker, `api-public`, `api-user` and the listed operators.
 - **Invite tokens.** The token travels in the URL fragment, so it never reaches a server log. DynamoDB stores only its SHA-256 hash as `inviteId`.
-- **Browser.** CSP is `default-src 'self'`, with `connect-src` adding only the Cognito domain. HSTS, `X-Frame-Options: DENY` and `Referrer-Policy: no-referrer` are also set.
+- **Browser.** CSP is `default-src 'self'`, with `connect-src` adding the Cognito domain and, in prod, the Sentry ingest host. HSTS, `X-Frame-Options: DENY` and `Referrer-Policy: no-referrer` are also set.
 - **Audit.** User and admin actions write events to the audit table, kept for 365 days. The worker writes no audit events.
 
 ## Check-in flow
@@ -272,6 +274,8 @@ Code layout:
 ## Observability
 
 Lambdas log structured JSON with Powertools Logger and have X-Ray active tracing. Metric filters and alarms notify SNS `checkin-<env>-alarms`; see [runbook.md](runbook.md#alarms). The worker writes no audit events; execution rows hold its outcomes.
+
+Errors go to Sentry in prod only: project `tecnofit-auto-checkin-api` for all Lambdas and `tecnofit-auto-checkin-web` for the SPA. Without a DSN the SDK stays off, so dev and local send nothing. Only error events are sent: no tracing, no replay. `packages/core/observability/scrub.ts` drops request data, user, extras, breadcrumbs and exception messages, so an event keeps only the exception type and stack. Lambdas are wrapped by `withSentry` (`packages/core/observability/sentry.ts`). The Hono APIs also report errors that map to 500. The worker rethrows its sanitized error with the original as `cause`, so Sentry keeps the original stack.
 
 ## Known limitations
 

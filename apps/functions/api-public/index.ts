@@ -4,6 +4,7 @@ import { KMSClient } from "@aws-sdk/client-kms";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { createEntities } from "@checkin/core/db/entities";
 import { fromCloudFront } from "@checkin/core/http/origin";
+import { captureException, withSentry } from "@checkin/core/observability/sentry";
 import { AccountExists, InvalidCredentials, InviteInvalid, checkInvite, redeemInvite, requestMeta } from "@checkin/core/domain/invites";
 import { LoginLocked, SESSION_COOKIE, loginUser } from "@checkin/core/domain/sessions";
 import { TecnofitError, TecnofitInvalidResponse } from "@checkin/core/tecnofit/client";
@@ -67,6 +68,7 @@ app.use("*", async (c, next) => {
 
 app.onError((err, c) => {
   const [status, message] = mapError(err);
+  if (status === 500) captureException(err);
   logger.warn("request failed", { route: c.req.path, status, error: err.name });
   return c.json({ message }, status);
 });
@@ -108,4 +110,4 @@ app.post("/api/auth/login", async (c) => {
   return c.body(null, 204);
 });
 
-export const handler = handle(app);
+export const handler = withSentry(handle(app));
