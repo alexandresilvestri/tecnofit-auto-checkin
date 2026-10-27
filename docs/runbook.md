@@ -55,6 +55,16 @@ Run once, before the first promote. Bootstrap and IAM background: [infrastructur
 3. In GitHub: Settings → Environments → `prod` → Deployment branches and tags = "Selected branches and tags", with the branch rule `main`. Add no required reviewer; see [ci-cd.md](ci-cd.md#prod-approval-model). Create the Environment before the first promote; otherwise GitHub creates it without protection.
 4. Run the first promote and confirm the SNS subscription email. Then create the prod admin with the `admin-create-user` and `admin-add-user-to-group` commands from "Admin reset". Use the prod `admin_user_pool_id`.
 
+## Sentry
+
+Prod Lambdas and the SPA report errors to Sentry; see [architecture.md](architecture.md#observability). To set it up or change a DSN:
+
+1. In HCP workspace `checkin-prod`, set the Terraform variables `sentry_dsn_api` and `sentry_dsn_web`; see [infrastructure.md](infrastructure.md#hcp-terraform). Do this before promoting a sha that declares them, or the run fails on a missing variable.
+2. In GitHub, set the Actions secret `SENTRY_AUTH_TOKEN` (Sentry organization auth token) and the Actions variable `SENTRY_ORG`. Without them, the prod build skips the source map upload.
+3. Promote. The DSNs reach the Lambdas, the SPA build and the CSP.
+
+To turn Sentry off, set both variables to an empty string and promote.
+
 ## Dev to prod migration
 
 One-shot. Run a dry run first, then apply. Ops scripts: [development.md](development.md).

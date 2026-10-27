@@ -158,7 +158,7 @@ npm run web:build
 ```
 
 - `scripts/build-functions.mjs` loops over every folder in `apps/functions`.
-- esbuild bundles `apps/functions/<name>/index.ts` as ESM for `node24` into `dist/functions/<name>/index.mjs`. A banner adds `createRequire` for CommonJS dependencies.
+- esbuild bundles `apps/functions/<name>/index.ts` as ESM for `node24` into `dist/functions/<name>/index.mjs`. A banner defines `require` for CommonJS dependencies. It imports `createRequire` under an alias, because bundled code (Sentry) also imports `createRequire`.
 - `zip -X -j` packs it into `dist/functions/<name>.zip`. Lambda runs it with handler `index.handler`.
 - `vite build` writes the SPA to `apps/web/dist`. `assetsInlineLimit: 0` keeps every asset a separate file, since the CSP blocks `data:` URIs.
 - Build-time variables `VITE_COGNITO_DOMAIN` and `VITE_COGNITO_CLIENT_ID` configure admin login.

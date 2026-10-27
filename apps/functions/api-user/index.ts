@@ -6,6 +6,7 @@ import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { writeAudit } from "@checkin/core/audit/audit";
 import { createEntities } from "@checkin/core/db/entities";
 import { fromCloudFront } from "@checkin/core/http/origin";
+import { captureException, withSentry } from "@checkin/core/observability/sentry";
 import { requestMeta } from "@checkin/core/domain/invites";
 import { SESSION_COOKIE, revokeSession, touchSession } from "@checkin/core/domain/sessions";
 import {
@@ -107,6 +108,7 @@ app.use("*", async (c, next) => {
 
 app.onError((err, c) => {
   const [status, message] = mapError(err);
+  if (status === 500) captureException(err);
   logger.warn("request failed", { route: c.req.path, status, error: err.name });
   return c.json({ message }, status);
 });
@@ -266,4 +268,4 @@ app.get("/api/executions", async (c) => {
   });
 });
 
-export const handler = handle(app);
+export const handler = withSentry(handle(app));

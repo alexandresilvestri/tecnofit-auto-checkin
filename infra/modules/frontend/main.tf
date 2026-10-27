@@ -1,5 +1,9 @@
 data "aws_caller_identity" "current" {}
 
+locals {
+  sentry_origin = var.sentry_dsn == "" ? "" : " https://${regex("@([^/]+)/", var.sentry_dsn)[0]}"
+}
+
 resource "aws_s3_bucket" "web" {
   bucket = "checkin-${var.env}-web-${data.aws_caller_identity.current.account_id}-us-east-1"
 }
@@ -77,7 +81,7 @@ resource "aws_cloudfront_response_headers_policy" "web" {
 
   security_headers_config {
     content_security_policy {
-      content_security_policy = "default-src 'self'; connect-src 'self' https://${var.auth_domain_prefix}.auth.us-east-1.amazoncognito.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+      content_security_policy = "default-src 'self'; connect-src 'self' https://${var.auth_domain_prefix}.auth.us-east-1.amazoncognito.com${local.sentry_origin}; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
       override                = true
     }
 

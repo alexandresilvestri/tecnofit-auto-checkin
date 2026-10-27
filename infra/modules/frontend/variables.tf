@@ -24,3 +24,8 @@ variable "certificate_arn" {
   type    = string
   default = null
 }
+
+variable "sentry_dsn" {
+  type    = string
+  default = ""
+}

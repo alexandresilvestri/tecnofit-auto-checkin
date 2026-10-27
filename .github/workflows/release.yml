@@ -17,6 +17,8 @@ on:
         required: true
       AWS_DEPLOY_ROLE_ARN:
         required: true
+      SENTRY_AUTH_TOKEN:
+        required: false
 
 permissions:
   contents: read
@@ -91,6 +93,7 @@ jobs:
             outputs=$(hcp "workspaces/$workspace_id/current-state-version-outputs" || true)
             web_bucket=$(output web_bucket) distribution_id=$(output distribution_id) web_url=$(output web_url)
             admin_client_id=$(output admin_client_id) auth_domain=$(output auth_domain) api_endpoint=$(output api_endpoint)
+            sentry_dsn_web=$(output sentry_dsn_web)
             if [ -n "$web_bucket" ] && [ -n "$distribution_id" ] && [ -n "$web_url" ] && [ -n "$admin_client_id" ] && [ -n "$auth_domain" ] && [ -n "$api_endpoint" ]; then break; fi
             sleep 10
           done
@@ -102,12 +105,16 @@ jobs:
             echo "API_ENDPOINT=$api_endpoint"
             echo "VITE_COGNITO_CLIENT_ID=$admin_client_id"
             echo "VITE_COGNITO_DOMAIN=$auth_domain"
+            echo "VITE_SENTRY_DSN=$sentry_dsn_web"
           } >> "$GITHUB_ENV"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
       - run: npm ci && npm run web:build
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
       - run: aws s3 sync apps/web/dist "s3://$WEB_BUCKET" --delete --exclude index.html
       - run: aws s3 cp apps/web/dist/index.html "s3://$WEB_BUCKET/index.html" --cache-control no-cache --content-type text/html
       - run: aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/index.html"
@@ -189,6 +196,7 @@ jobs:
             outputs=$(hcp "workspaces/$workspace_id/current-state-version-outputs" || true)
             web_bucket=$(output web_bucket) distribution_id=$(output distribution_id) web_url=$(output web_url)
             admin_client_id=$(output admin_client_id) auth_domain=$(output auth_domain) api_endpoint=$(output api_endpoint)
+            sentry_dsn_web=$(output sentry_dsn_web)
             if [ -n "$web_bucket" ] && [ -n "$distribution_id" ] && [ -n "$web_url" ] && [ -n "$admin_client_id" ] && [ -n "$auth_domain" ] && [ -n "$api_endpoint" ]; then break; fi
             sleep 10
           done
@@ -200,12 +208,16 @@ jobs:
             echo "API_ENDPOINT=$api_endpoint"
             echo "VITE_COGNITO_CLIENT_ID=$admin_client_id"
             echo "VITE_COGNITO_DOMAIN=$auth_domain"
+            echo "VITE_SENTRY_DSN=$sentry_dsn_web"
           } >> "$GITHUB_ENV"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
       - run: npm ci && npm run web:build
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
       - run: aws s3 sync apps/web/dist "s3://$WEB_BUCKET" --delete --exclude index.html
       - run: aws s3 cp apps/web/dist/index.html "s3://$WEB_BUCKET/index.html" --cache-control no-cache --content-type text/html
       - run: aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/index.html"

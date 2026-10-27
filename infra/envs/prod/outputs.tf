@@ -57,3 +57,7 @@ output "auth_domain" {
 output "api_endpoint" {
   value = module.backend.api_endpoint
 }
+
+output "sentry_dsn_web" {
+  value = var.sentry_dsn_web
+}

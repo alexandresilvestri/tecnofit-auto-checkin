@@ -9,6 +9,7 @@ resource "random_password" "origin" {
 
 locals {
   worker_name = "checkin-${var.env}-checkin-worker"
+  sentry_env  = var.sentry_dsn == "" ? {} : { SENTRY_DSN = var.sentry_dsn }
 
   api_functions = {
     api-public = {
@@ -224,13 +225,13 @@ resource "aws_lambda_function" "worker" {
   s3_bucket     = var.artifacts_bucket
   s3_key        = "${var.artifact_version}/checkin-worker.zip"
 
-  # Only table names live here; no secrets.
+  # Only table names and the Sentry DSN live here; no secrets.
   # nosemgrep: terraform.aws.security.aws-lambda-environment-unencrypted.aws-lambda-environment-unencrypted
   environment {
-    variables = {
+    variables = merge({
       TABLE_MAIN  = var.main_table_name
       TABLE_AUDIT = var.audit_table_name
-    }
+    }, local.sentry_env)
   }
 
   tracing_config {
@@ -332,10 +333,10 @@ resource "aws_lambda_function" "api" {
   s3_bucket     = var.artifacts_bucket
   s3_key        = "${var.artifact_version}/${each.key}.zip"
 
-  # Holds table names, the KMS key ARN and the origin secret (CloudFront-to-API shared header); acceptable: encrypted at rest by the Lambda default key and never logged.
+  # Holds table names, the KMS key ARN, the Sentry DSN and the origin secret (CloudFront-to-API shared header); acceptable: encrypted at rest by the Lambda default key and never logged.
   # nosemgrep: terraform.aws.security.aws-lambda-environment-unencrypted.aws-lambda-environment-unencrypted
   environment {
-    variables = each.value.env
+    variables = merge(each.value.env, local.sentry_env)
   }
 
   tracing_config {

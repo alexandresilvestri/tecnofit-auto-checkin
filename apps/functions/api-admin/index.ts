@@ -24,6 +24,7 @@ import {
   suspendUser,
 } from "@checkin/core/domain/users";
 import { fromCloudFront } from "@checkin/core/http/origin";
+import { captureException, withSentry } from "@checkin/core/observability/sentry";
 import { handle } from "@hono/aws-lambda";
 import { Hono } from "hono";
 import type { Context } from "hono";
@@ -106,6 +107,7 @@ app.use("*", async (c, next) => {
 
 app.onError((err, c) => {
   const [status, message] = mapError(err);
+  if (status === 500) captureException(err);
   logger.warn("request failed", { route: c.req.path, status, error: err.name });
   return c.json({ message }, status);
 });
@@ -325,4 +327,4 @@ app.get("/api/admin/audit/export", async (c) => {
   });
 });
 
-export const handler = handle(app);
+export const handler = withSentry(handle(app));

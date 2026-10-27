@@ -67,7 +67,7 @@ The sha must already have artifacts in the bucket. In practice, it must be a `ma
 
 ### release.yml
 
-A reusable workflow with three inputs: `env`, `workspace` and `sha`. It requires the secrets `TF_API_TOKEN` and `AWS_DEPLOY_ROLE_ARN`.
+A reusable workflow with three inputs: `env`, `workspace` and `sha`. It requires the secrets `TF_API_TOKEN` and `AWS_DEPLOY_ROLE_ARN`. `SENTRY_AUTH_TOKEN` is optional. Only `promote.yml` passes it, so only prod uploads source maps.
 
 | Job | Runs when | Notes |
 | --- | --- | --- |
@@ -91,8 +91,8 @@ Each `dev` or `prod` job runs these steps in order. Any failure stops the releas
 6. **Upload** the whole `infra` folder as a configuration version to the workspace.
 7. **Create a run** in the workspace.
 8. **Apply** the run, but only if HCP marks it confirmable. A run with no changes skips this step.
-9. **Read web outputs.** The job queries the HCP API for the workspace's current state outputs. It needs `web_bucket`, `distribution_id`, `web_url`, `admin_client_id`, `auth_domain` and `api_endpoint`.
-10. **Build the SPA** with `npm ci && npm run web:build`. `VITE_COGNITO_CLIENT_ID` and `VITE_COGNITO_DOMAIN` come from the outputs.
+9. **Read web outputs.** The job queries the HCP API for the workspace's current state outputs. It needs `web_bucket`, `distribution_id`, `web_url`, `admin_client_id`, `auth_domain` and `api_endpoint`. `sentry_dsn_web` is optional; dev does not have it.
+10. **Build the SPA** with `npm ci && npm run web:build`. `VITE_COGNITO_CLIENT_ID`, `VITE_COGNITO_DOMAIN` and `VITE_SENTRY_DSN` come from the outputs. With `SENTRY_AUTH_TOKEN` set, `@sentry/vite-plugin` builds hidden source maps, uploads them to `tecnofit-auto-checkin-web` and deletes them from `dist`.
 11. **Sync the SPA.** `aws s3 sync apps/web/dist` to the web bucket with `--delete`, excluding `index.html`. Then `index.html` is uploaded alone with `Cache-Control: no-cache`.
 12. **Invalidate** `/index.html` on the distribution.
 13. **Smoke test.** `GET <web_url>/api/health` must return `ok: true`.
@@ -107,7 +107,7 @@ The KMS key policy has its own rollback caveat; see [infrastructure.md](infrastr
 
 ## Secrets and variables
 
-Jobs without a GitHub Environment read all four values, so they are set at repository level.
+Jobs without a GitHub Environment read these values, so they are set at repository level.
 
 | Name | Kind | Used by | Value |
 | --- | --- | --- | --- |
@@ -115,6 +115,8 @@ Jobs without a GitHub Environment read all four values, so they are set at repos
 | `AWS_DEPLOY_ROLE_ARN` | Actions secret | `deploy.yml` `build`, `release.yml` | Bootstrap output `github_deploy_role_arn` |
 | `TF_CLOUD_ORGANIZATION` | Actions variable | `pr.yml` `plan`, `release.yml` | `ATS_org` |
 | `ARTIFACTS_BUCKET` | Actions variable | `deploy.yml` `build`, `release.yml` | Bootstrap output `artifacts_bucket` |
+| `SENTRY_AUTH_TOKEN` | Actions secret | `promote.yml`, `release.yml` | Sentry organization auth token (source map upload) |
+| `SENTRY_ORG` | Actions variable | `release.yml` | Sentry organization slug |
 
 `TF_API_TOKEN` must be an HCP user API token. Organization tokens and GitHub App tokens fail the upload with `unauthorized`. The token owns every workspace, prod included; see [infrastructure.md](infrastructure.md#dev-deny-prod-policy).
 
