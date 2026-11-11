@@ -26,20 +26,20 @@
     "e2e": "playwright test"
   },
   "devDependencies": {
-    "@aws-sdk/client-cloudfront": "3.1154.0",
-    "@aws-sdk/client-dynamodb": "3.1154.0",
-    "@aws-sdk/client-sts": "3.1154.0",
+    "@aws-sdk/client-cloudfront": "3.1161.0",
+    "@aws-sdk/client-dynamodb": "3.1161.0",
+    "@aws-sdk/client-sts": "3.1161.0",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.64.1",
     "@types/aws-lambda": "8.10.164",
-    "@types/node": "26.6.5",
+    "@types/node": "26.6.6",
     "aws-sdk-client-mock": "4.1.0",
     "esbuild": "0.28.2",
-    "eslint": "10.13.0",
+    "eslint": "10.14.0",
     "msw": "3.0.3",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
-    "typescript-eslint": "8.72.0",
-    "vitest": "5.0.5"
+    "typescript-eslint": "8.72.1",
+    "vitest": "5.1.0"
   }
 }
